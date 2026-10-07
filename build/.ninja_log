@@ -1,0 +1,15 @@
+# ninja log v6
+31	758	8131104888459814	sandtrix_autogen/timestamp	f3470707faa5e13a
+31	758	8131104888459814	sandtrix_autogen/mocs_compilation.cpp	f3470707faa5e13a
+31	758	8131104888459814	C:/Users/omega/Desktop/sandtrix/build/sandtrix_autogen/timestamp	f3470707faa5e13a
+31	758	8131104888459814	C:/Users/omega/Desktop/sandtrix/build/sandtrix_autogen/mocs_compilation.cpp	f3470707faa5e13a
+772	3181	8131104889342425	CMakeFiles/sandtrix.dir/src/Tetromino.cpp.obj	20beefa6de0028ee
+784	3542	8131104889471757	CMakeFiles/sandtrix.dir/src/ParticleSystem.cpp.obj	c77004681a99cdd4
+798	3800	8131104889610794	CMakeFiles/sandtrix.dir/src/UIPanels.cpp.obj	4e1fc8aa7cd35704
+766	3941	8131104889289436	CMakeFiles/sandtrix.dir/src/main.cpp.obj	4519dd517c5cbb73
+791	4012	8131104889534720	CMakeFiles/sandtrix.dir/src/AudioManager.cpp.obj	a60f5966e8f96ee9
+804	4048	8131104889659105	CMakeFiles/sandtrix.dir/src/GameCanvas.cpp.obj	11204630eede87cf
+809	4233	8131104889722653	CMakeFiles/sandtrix.dir/src/MainWindow.cpp.obj	3fe3c225367c45f6
+763	4301	8131104889251121	CMakeFiles/sandtrix.dir/sandtrix_autogen/mocs_compilation.cpp.obj	9d28aaaf306a2476
+779	4384	8131104889407266	CMakeFiles/sandtrix.dir/src/SandEngine.cpp.obj	22cdfd87157db99f
+4384	4705	8131104925467131	sandtrix.exe	ecd1507b9a20b384

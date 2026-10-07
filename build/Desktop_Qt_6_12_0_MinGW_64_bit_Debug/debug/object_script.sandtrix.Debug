@@ -1,0 +1,12 @@
+debug/main.o
+debug/Tetromino.o
+debug/SandEngine.o
+debug/ParticleSystem.o
+debug/AudioManager.o
+debug/UIPanels.o
+debug/GameCanvas.o
+debug/MainWindow.o
+debug/moc_AudioManager.o
+debug/moc_UIPanels.o
+debug/moc_GameCanvas.o
+debug/moc_MainWindow.o

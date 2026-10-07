@@ -50,7 +50,6 @@ private:
     ComboBadge* m_comboBadge;
 
     std::vector<PiecePreviewWidget*> m_nextPreviews;
-    QLabel* m_lblLockedPalette;
     QLabel* m_lblLockedElements;
     QPushButton* m_btnSound;
     QPushButton* m_btnRestart;

@@ -40,12 +40,9 @@ signals:
     void settingsChanged(const GameSettings& settings);
 
 private slots:
-    void onPaletteIndexChanged(int index);
     void onSaveClicked();
 
 private:
-    QComboBox* m_comboPalette;
-    QLabel* m_lblPaletteDesc;
     QSpinBox* m_spinLevel;
     QCheckBox* m_chkElements;
     QCheckBox* m_chkSound;

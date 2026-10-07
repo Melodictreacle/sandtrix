@@ -171,13 +171,11 @@ MainMenuWidget::MainMenuWidget(QWidget* parent)
 }
 
 void MainMenuWidget::updateSettingsBadge(const GameSettings& settings) {
-    const auto& palettes = getAvailablePalettes();
-    QString palName = (settings.paletteIndex < static_cast<int>(palettes.size())) ? palettes[settings.paletteIndex].name : "Custom";
     QString elemStr = settings.enableElements ? "🌊 Elements ON" : "Elements OFF";
     QString sndStr = settings.soundEnabled ? "🔊 Sound ON" : "🔇 Sound OFF";
 
-    m_lblBadge->setText(QString("⚙ Preset: [%1]  •  Level %2  •  %3  •  %4")
-        .arg(palName).arg(settings.startingLevel).arg(elemStr).arg(sndStr));
+    m_lblBadge->setText(QString("⚙ Level %1  •  %2  •  %3")
+        .arg(settings.startingLevel).arg(elemStr).arg(sndStr));
 }
 
 // ==================== SettingsWidget ====================
@@ -213,48 +211,7 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     auto* formLayout = new QVBoxLayout(card);
     formLayout->setSpacing(14);
 
-    // 1. Palette Option
-    auto* lblPalTitle = new QLabel("COLOR PALETTE", this);
-    lblPalTitle->setStyleSheet("color: #94a1b2; font-size: 11px; font-weight: bold; letter-spacing: 1px;");
-    m_comboPalette = new QComboBox(this);
-    m_comboPalette->setStyleSheet(
-        "QComboBox {"
-        "  background-color: #242c3d;"
-        "  border: 1px solid #37435f;"
-        "  border-radius: 6px;"
-        "  padding: 7px 12px;"
-        "  color: #f7fafc;"
-        "  font-size: 13px;"
-        "  font-weight: bold;"
-        "}"
-        "QComboBox:hover {"
-        "  border-color: #63b3ed;"
-        "}"
-        "QComboBox QAbstractItemView {"
-        "  background-color: #1a202c;"
-        "  color: #f7fafc;"
-        "  selection-background-color: #2b7a78;"
-        "  selection-color: #ffffff;"
-        "  border: 1px solid #37435f;"
-        "  padding: 4px;"
-        "}"
-    );
-    const auto& palettes = getAvailablePalettes();
-    for (const auto& p : palettes) {
-        m_comboPalette->addItem(p.name);
-    }
-    m_comboPalette->setCurrentIndex(currentSettings.paletteIndex);
-
-    m_lblPaletteDesc = new QLabel(this);
-    m_lblPaletteDesc->setStyleSheet("color: #90cdf4; font-size: 11px; font-style: italic;");
-    connect(m_comboPalette, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &SettingsWidget::onPaletteIndexChanged);
-    onPaletteIndexChanged(currentSettings.paletteIndex);
-
-    formLayout->addWidget(lblPalTitle);
-    formLayout->addWidget(m_comboPalette);
-    formLayout->addWidget(m_lblPaletteDesc);
-
-    // 2. Starting Level Option
+    // 1. Starting Level Option
     auto* lblLevelTitle = new QLabel("STARTING SPEED / LEVEL (1 - 10)", this);
     lblLevelTitle->setStyleSheet("color: #94a1b2; font-size: 11px; font-weight: bold; letter-spacing: 1px;");
     m_spinLevel = new QSpinBox(this);
@@ -278,7 +235,7 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     formLayout->addWidget(lblLevelTitle);
     formLayout->addWidget(m_spinLevel);
 
-    // 3. Elemental Materials Option
+    // 2. Elemental Materials Option
     m_chkElements = new QCheckBox("Enable Elemental Pieces (🌊 Water & ☣ Acid)", this);
     m_chkElements->setChecked(currentSettings.enableElements);
     m_chkElements->setStyleSheet(
@@ -298,7 +255,7 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     formLayout->addWidget(m_chkElements);
     formLayout->addWidget(elemDesc);
 
-    // 4. Sound & Volume Option
+    // 3. Sound & Volume Option
     m_chkSound = new QCheckBox("Enable Sound Effects", this);
     m_chkSound->setChecked(currentSettings.soundEnabled);
     m_chkSound->setStyleSheet(
@@ -395,16 +352,9 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     mainLayout->addLayout(btnRowLayout);
 }
 
-void SettingsWidget::onPaletteIndexChanged(int index) {
-    const auto& palettes = getAvailablePalettes();
-    if (index >= 0 && index < static_cast<int>(palettes.size())) {
-        m_lblPaletteDesc->setText("Description: " + palettes[index].description);
-    }
-}
-
 GameSettings SettingsWidget::getSettings() const {
     GameSettings s;
-    s.paletteIndex = m_comboPalette->currentIndex();
+    s.paletteIndex = 0;
     s.startingLevel = m_spinLevel->value();
     s.enableElements = m_chkElements->isChecked();
     s.soundEnabled = m_chkSound->isChecked();
@@ -482,7 +432,7 @@ HowToPlayWidget::HowToPlayWidget(QWidget* parent)
 
     addCard("⚡ 2. Edge-to-Edge Line Clears",
             "Unlike traditional Tetris where straight horizontal rows clear, in Sandtrix you clear lines by forming an "
-            "unbroken path of the SAME COLOR connecting the LEFT WALL (x=0) to the RIGHT WALL (x=W-1). "
+            "unbroken path of the SAME COLOR (Red, Gold, Green, or Blue) connecting the LEFT WALL (x=0) to the RIGHT WALL (x=W-1). "
             "Any 8-way continuous connected path of that color vaporizes!",
             "#e2b755");
 
@@ -492,8 +442,8 @@ HowToPlayWidget::HowToPlayWidget(QWidget* parent)
             "#e27d9a");
 
     addCard("🌊 4. Elemental Pieces",
-            "• Water Blocks: Liquid flows horizontally to fill gaps flat. Heavy sand sinks through water! Connecting water edge-to-edge triggers a Tidal Wave (+800 pts)!\n"
-            "• Acid Blocks: Soft jade blocks that actively dissolve sand directly beneath them on impact.",
+            "• Water Blocks (Aqua): Liquid flows horizontally to fill gaps flat. Heavy sand sinks through water! Connecting water edge-to-edge triggers a Tidal Wave (+800 pts)!\n"
+            "• Acid Blocks (Lime): Distinct radioactive lime blocks that actively dissolve sand directly beneath them on impact.",
             "#68c48a");
 
     addCard("🎮 5. Complete Keyboard Controls",

@@ -81,8 +81,7 @@ QWidget* MainWindow::createGameScreen() {
     mainLayout->setContentsMargins(18, 18, 18, 18);
     mainLayout->setSpacing(16);
 
-    const auto& palettes = getAvailablePalettes();
-    const auto& defaultPalette = palettes[m_settings.paletteIndex];
+    const auto& defaultPalette = getGamePalette();
 
     // ----------------- LEFT PANEL -----------------
     auto* leftPanel = new QVBoxLayout();
@@ -92,10 +91,10 @@ QWidget* MainWindow::createGameScreen() {
     m_holdPreview = new PiecePreviewWidget("HOLD", defaultPalette, 84, this);
     leftPanel->addWidget(m_holdPreview);
 
-    m_cardScore = new StatCard("Score", "0", "#7cb7ea", this);
-    m_cardHighScore = new StatCard("High Score", "0", "#e2b755", this);
-    m_cardLevel = new StatCard("Level", "1", "#68c48a", this);
-    m_cardBands = new StatCard("Lines Cleared", "0", "#e27d9a", this);
+    m_cardScore = new StatCard("Score", "0", "#327DEB", this);
+    m_cardHighScore = new StatCard("High Score", "0", "#F5B923", this);
+    m_cardLevel = new StatCard("Level", "1", "#28B964", this);
+    m_cardBands = new StatCard("Lines Cleared", "0", "#EB4B4B", this);
 
     leftPanel->addWidget(m_cardScore);
     leftPanel->addWidget(m_cardHighScore);
@@ -146,12 +145,8 @@ QWidget* MainWindow::createGameScreen() {
     lblLockedHeader->setStyleSheet("color: #94a1b2; font-size: 9px; font-weight: bold; letter-spacing: 1px;");
     optionsLayout->addWidget(lblLockedHeader);
 
-    m_lblLockedPalette = new QLabel("Palette: Soft Zen", this);
-    m_lblLockedPalette->setStyleSheet("color: #7cb7ea; font-size: 11px; font-weight: bold;");
-    optionsLayout->addWidget(m_lblLockedPalette);
-
-    m_lblLockedElements = new QLabel("Elements: ON", this);
-    m_lblLockedElements->setStyleSheet("color: #68c48a; font-size: 10px; font-weight: bold;");
+    m_lblLockedElements = new QLabel("Elements: ON | Lvl 1", this);
+    m_lblLockedElements->setStyleSheet("color: #68c48a; font-size: 11px; font-weight: bold;");
     optionsLayout->addWidget(m_lblLockedElements);
 
     auto* btnRow = new QHBoxLayout();
@@ -243,8 +238,7 @@ QWidget* MainWindow::createGameScreen() {
 }
 
 void MainWindow::onStartGame() {
-    const auto& palettes = getAvailablePalettes();
-    const auto& pal = (m_settings.paletteIndex < static_cast<int>(palettes.size())) ? palettes[m_settings.paletteIndex] : palettes[0];
+    const auto& pal = getGamePalette();
 
     // Lock in settings on canvas
     m_canvas->applySettings(m_settings);
@@ -254,7 +248,6 @@ void MainWindow::onStartGame() {
     }
 
     // Update locked info badges
-    m_lblLockedPalette->setText("Palette: " + pal.name);
     m_lblLockedElements->setText(QString("Elements: %1 | Lvl %2").arg(m_settings.enableElements ? "ON" : "OFF").arg(m_settings.startingLevel));
 
     // Update audio

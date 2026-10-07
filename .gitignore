@@ -1,0 +1,40 @@
+# Build artifacts and directories
+build/
+build-*/
+cmake-build-*/
+out/
+bin/
+*.obj
+*.o
+*.a
+*.lib
+*.exe
+*.dll
+*.so
+*.dylib
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.ninja
+.ninja_*
+compile_commands.json
+
+# Qt Creator project settings
+*.user
+*.user.*
+.qtc_clangd/
+*.autosave
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local user data
+highscores.json
+
+# Procedurally generated audio cache (generated at runtime)
+sounds/*.wav

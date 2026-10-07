@@ -1,5 +1,0 @@
-C:/Users/omega/Desktop/sandtrix/build/CMakeFiles/sandtrix.dir
-C:/Users/omega/Desktop/sandtrix/build/CMakeFiles/edit_cache.dir
-C:/Users/omega/Desktop/sandtrix/build/CMakeFiles/rebuild_cache.dir
-C:/Users/omega/Desktop/sandtrix/build/CMakeFiles/sandtrix_autogen_timestamp_deps.dir
-C:/Users/omega/Desktop/sandtrix/build/CMakeFiles/sandtrix_autogen.dir

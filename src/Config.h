@@ -3,7 +3,6 @@
 #include <QString>
 #include <QColor>
 #include <vector>
-#include <map>
 
 // Sand Grid Dimensions
 constexpr int BOARD_WIDTH = 80;          // Sand grid columns (grains)
@@ -35,9 +34,9 @@ constexpr double COMBO_MULTIPLIER_BASE = 1.5;
 constexpr uint8_t MATERIAL_WATER = 50;   // Liquid: flows horizontally, displaced upward by sinking sand
 constexpr uint8_t MATERIAL_ACID  = 51;   // Acid: dissolves sand directly below it on contact
 
-// Material Colors
-inline QColor getWaterColor() { return QColor(0, 185, 255); }
-inline QColor getAcidColor()  { return QColor(57, 255, 20); }
+// Soft Eye-Friendly Material Colors (Muted, soothing saturation)
+inline QColor getWaterColor() { return QColor(82, 183, 181); }   // Soft calming aquamarine
+inline QColor getAcidColor()  { return QColor(136, 212, 152); }  // Soft soothing mint jade
 
 // Color Palette struct
 struct ColorPalette {
@@ -49,50 +48,72 @@ struct ColorPalette {
 inline const std::vector<ColorPalette>& getAvailablePalettes() {
     static const std::vector<ColorPalette> palettes = {
         {
+            "Soft Zen (Eye-Friendly)",
+            "Calming, muted earth and pastel tones designed for low eye fatigue",
+            {
+                QColor(22, 25, 33),     // 0: Deep warm slate background
+                QColor(228, 128, 138),  // 1: Soft Dusty Coral
+                QColor(98, 186, 145),   // 2: Calming Sage Jade
+                QColor(238, 192, 102),  // 3: Warm Honey Amber
+                QColor(112, 168, 222)   // 4: Soft Slate Sky Blue
+            }
+        },
+        {
+            "Warm Desert",
+            "Natural mineral sands: terracotta, sandstone, dune gold, and river clay",
+            {
+                QColor(26, 24, 28),     // 0: Warm charcoal background
+                QColor(218, 130, 98),   // 1: Terracotta Clay
+                QColor(230, 190, 118),  // 2: Golden Sandstone
+                QColor(140, 175, 142),  // 3: Desert Sage
+                QColor(128, 160, 186)   // 4: Oasis Teal
+            }
+        },
+        {
+            "Nordic Dusk",
+            "Cool, soothing Scandinavian twilight palette with gentle contrasts",
+            {
+                QColor(20, 23, 31),     // 0: Nordic Slate background
+                QColor(214, 134, 168),  // 1: Muted Heather Rose
+                QColor(118, 184, 180),  // 2: Nordic Fjord Mint
+                QColor(224, 186, 126),  // 3: Birch Amber
+                QColor(124, 154, 216)   // 4: Arctic Dusk Blue
+            }
+        },
+        {
+            "Classic 7 (Soft)",
+            "The 7 traditional shapes with softened, eye-friendly luminance",
+            {
+                QColor(20, 22, 30),     // 0: Dark Navy background
+                QColor(92, 196, 212),   // 1: Soft Cyan (I)
+                QColor(228, 198, 96),   // 2: Soft Sun Yellow (O)
+                QColor(168, 132, 216),  // 3: Soft Lavender (T)
+                QColor(108, 194, 134),  // 4: Soft Fern Green (S)
+                QColor(224, 118, 118),  // 5: Soft Crimson (Z)
+                QColor(116, 154, 224),  // 6: Soft Cornflower Blue (J)
+                QColor(228, 154, 96)    // 7: Soft Peach Orange (L)
+            }
+        },
+        {
+            "Pastel Meadow",
+            "Gentle herbal pastel hues designed for prolonged comfortable play",
+            {
+                QColor(21, 25, 32),     // 0: Deep night slate
+                QColor(142, 202, 176),  // 1: Soft Meadow Mint
+                QColor(242, 195, 138),  // 2: Soft Apricot
+                QColor(186, 170, 222),  // 3: Soft Heather Violet
+                QColor(138, 188, 228)   // 4: Soft Powder Blue
+            }
+        },
+        {
             "Cyber Neon",
-            "Vibrant arcade neon with 4 balanced colors",
+            "High contrast vibrant arcade neon (Legacy)",
             {
                 QColor(15, 17, 26),     // 0: Dark Void background
                 QColor(255, 75, 130),   // 1: Neon Pink / Coral
                 QColor(0, 230, 255),    // 2: Electric Cyan
                 QColor(255, 215, 0),    // 3: Radiant Amber Gold
                 QColor(46, 213, 115)    // 4: Mint Emerald Green
-            }
-        },
-        {
-            "Synthwave",
-            "80s retro synthwave aesthetic",
-            {
-                QColor(20, 14, 34),     // 0: Deep Purple background
-                QColor(255, 46, 147),   // 1: Hot Magenta
-                QColor(162, 89, 255),   // 2: Electric Violet
-                QColor(0, 240, 255),    // 3: Cyber Cyan
-                QColor(255, 230, 0)     // 4: Laser Yellow
-            }
-        },
-        {
-            "Pastel Sand",
-            "Soft soothing desert sand tones",
-            {
-                QColor(26, 28, 35),     // 0: Charcoal Dark background
-                QColor(242, 132, 130),  // 1: Soft Coral
-                QColor(246, 189, 96),   // 2: Sandy Gold
-                QColor(132, 165, 157),  // 3: Sage Mint
-                QColor(142, 202, 230)   // 4: Sky Blue
-            }
-        },
-        {
-            "Classic 7",
-            "Expert mode with all 7 traditional Tetris colors",
-            {
-                QColor(14, 16, 24),     // 0: Dark Navy background
-                QColor(0, 235, 235),    // 1: Cyan (I)
-                QColor(245, 220, 0),    // 2: Yellow (O)
-                QColor(170, 0, 255),    // 3: Purple (T)
-                QColor(0, 230, 80),     // 4: Green (S)
-                QColor(255, 40, 50),    // 5: Red (Z)
-                QColor(30, 100, 255),   // 6: Blue (J)
-                QColor(255, 140, 0)     // 7: Orange (L)
             }
         }
     };
@@ -101,7 +122,7 @@ inline const std::vector<ColorPalette>& getAvailablePalettes() {
 
 // Game Settings chosen before game start
 struct GameSettings {
-    int paletteIndex = 0;
+    int paletteIndex = 0; // Default to Soft Zen
     int startingLevel = 1;
     bool enableElements = true;
     bool soundEnabled = true;

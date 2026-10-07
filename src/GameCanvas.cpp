@@ -361,11 +361,11 @@ void GameCanvas::drawPauseOverlay(QPainter& painter) {
     painter.fillRect(rect(), QColor(10, 12, 18, 190));
 
     painter.setFont(QFont("Segoe UI", 26, QFont::Bold));
-    painter.setPen(QColor("#00E6FF"));
+    painter.setPen(QColor("#7cb7ea"));
     painter.drawText(rect(), Qt::AlignCenter, "PAUSED");
 
     painter.setFont(QFont("Segoe UI", 12));
-    painter.setPen(QColor("#a0a8be"));
+    painter.setPen(QColor("#cbd5e0"));
     QRect subRect = rect().adjusted(0, 60, 0, 0);
     painter.drawText(subRect, Qt::AlignCenter, "Press P or Esc to Resume");
 }
@@ -376,11 +376,11 @@ void GameCanvas::drawGameOverOverlay(QPainter& painter) {
     int centerY = CANVAS_HEIGHT / 2 - 50;
 
     painter.setFont(QFont("Segoe UI", 28, QFont::Bold));
-    painter.setPen(QColor("#FF4B82"));
+    painter.setPen(QColor("#e27d9a"));
     painter.drawText(QRect(0, centerY, CANVAS_WIDTH, 40), Qt::AlignCenter, "GAME OVER");
 
     painter.setFont(QFont("Segoe UI", 14));
-    painter.setPen(QColor("#FFFFFF"));
+    painter.setPen(QColor("#f7fafc"));
     painter.drawText(
         QRect(0, centerY + 55, CANVAS_WIDTH, 25),
         Qt::AlignCenter,
@@ -388,7 +388,7 @@ void GameCanvas::drawGameOverOverlay(QPainter& painter) {
     );
 
     painter.setFont(QFont("Segoe UI", 12));
-    painter.setPen(QColor("#FFD700"));
+    painter.setPen(QColor("#e2b755"));
     painter.drawText(
         QRect(0, centerY + 85, CANVAS_WIDTH, 25),
         Qt::AlignCenter,
@@ -397,7 +397,7 @@ void GameCanvas::drawGameOverOverlay(QPainter& painter) {
 
     int restartAlpha = static_cast<int>(170 + 75 * std::sin(m_pulseTime * 4.0));
     painter.setFont(QFont("Segoe UI", 12, QFont::Bold));
-    painter.setPen(QColor(0, 230, 255, restartAlpha));
+    painter.setPen(QColor(124, 183, 234, restartAlpha));
     painter.drawText(
         QRect(0, centerY + 130, CANVAS_WIDTH, 30),
         Qt::AlignCenter,

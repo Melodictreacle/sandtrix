@@ -20,28 +20,28 @@ MainWindow::MainWindow(QWidget* parent)
 void MainWindow::initStackedViews() {
     setStyleSheet(
         "QMainWindow {"
-        "  background-color: #0b0d13;"
+        "  background-color: #11141c;"
         "}"
         "QWidget {"
-        "  color: #e2e8f0;"
+        "  color: #f0f4f8;"
         "  font-family: 'Segoe UI', system-ui, sans-serif;"
         "}"
         "QPushButton {"
-        "  background-color: #1a1e2d;"
-        "  border: 1px solid #2a2e3f;"
+        "  background-color: #242c3d;"
+        "  border: 1px solid #37435f;"
         "  border-radius: 6px;"
         "  padding: 7px 12px;"
-        "  color: #e2e8f0;"
+        "  color: #f7fafc;"
         "  font-weight: bold;"
         "  font-size: 11px;"
         "}"
         "QPushButton:hover {"
-        "  background-color: #252b3f;"
-        "  border-color: #00E6FF;"
-        "  color: #00E6FF;"
+        "  background-color: #313c54;"
+        "  border-color: #63b3ed;"
+        "  color: #ffffff;"
         "}"
         "QPushButton:pressed {"
-        "  background-color: #161822;"
+        "  background-color: #1b212e;"
         "}"
     );
 
@@ -92,10 +92,10 @@ QWidget* MainWindow::createGameScreen() {
     m_holdPreview = new PiecePreviewWidget("HOLD", defaultPalette, 84, this);
     leftPanel->addWidget(m_holdPreview);
 
-    m_cardScore = new StatCard("Score", "0", "#00E6FF", this);
-    m_cardHighScore = new StatCard("High Score", "0", "#FFD700", this);
-    m_cardLevel = new StatCard("Level", "1", "#2ED573", this);
-    m_cardBands = new StatCard("Lines Cleared", "0", "#FF4B82", this);
+    m_cardScore = new StatCard("Score", "0", "#7cb7ea", this);
+    m_cardHighScore = new StatCard("High Score", "0", "#e2b755", this);
+    m_cardLevel = new StatCard("Level", "1", "#68c48a", this);
+    m_cardBands = new StatCard("Lines Cleared", "0", "#e27d9a", this);
 
     leftPanel->addWidget(m_cardScore);
     leftPanel->addWidget(m_cardHighScore);
@@ -119,7 +119,7 @@ QWidget* MainWindow::createGameScreen() {
     rightPanel->setAlignment(Qt::AlignTop);
 
     auto* lblNext = new QLabel("NEXT PIECES", this);
-    lblNext->setStyleSheet("color: #7d8597; font-size: 11px; font-weight: bold; letter-spacing: 1px;");
+    lblNext->setStyleSheet("color: #94a1b2; font-size: 11px; font-weight: bold; letter-spacing: 1px;");
     rightPanel->addWidget(lblNext);
 
     for (int i = 0; i < 3; ++i) {
@@ -132,8 +132,8 @@ QWidget* MainWindow::createGameScreen() {
     auto* optionsFrame = new QFrame(this);
     optionsFrame->setStyleSheet(
         "QFrame {"
-        "  background-color: #12141c;"
-        "  border: 1px solid #1f2333;"
+        "  background-color: #161b26;"
+        "  border: 1px solid #283248;"
         "  border-radius: 8px;"
         "  padding: 6px;"
         "}"
@@ -143,25 +143,63 @@ QWidget* MainWindow::createGameScreen() {
     optionsLayout->setSpacing(6);
 
     auto* lblLockedHeader = new QLabel("RUN SETTINGS [LOCKED]", this);
-    lblLockedHeader->setStyleSheet("color: #7d8597; font-size: 9px; font-weight: bold; letter-spacing: 1px;");
+    lblLockedHeader->setStyleSheet("color: #94a1b2; font-size: 9px; font-weight: bold; letter-spacing: 1px;");
     optionsLayout->addWidget(lblLockedHeader);
 
-    m_lblLockedPalette = new QLabel("Palette: Cyber Neon", this);
-    m_lblLockedPalette->setStyleSheet("color: #00E6FF; font-size: 11px; font-weight: bold;");
+    m_lblLockedPalette = new QLabel("Palette: Soft Zen", this);
+    m_lblLockedPalette->setStyleSheet("color: #7cb7ea; font-size: 11px; font-weight: bold;");
     optionsLayout->addWidget(m_lblLockedPalette);
 
     m_lblLockedElements = new QLabel("Elements: ON", this);
-    m_lblLockedElements->setStyleSheet("color: #2ED573; font-size: 10px; font-weight: bold;");
+    m_lblLockedElements->setStyleSheet("color: #68c48a; font-size: 10px; font-weight: bold;");
     optionsLayout->addWidget(m_lblLockedElements);
 
     auto* btnRow = new QHBoxLayout();
     btnRow->setSpacing(6);
 
     m_btnSound = new QPushButton("🔊 Sound", this);
+    m_btnSound->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #242c3d;"
+        "  color: #f7fafc;"
+        "  border: 1px solid #37435f;"
+        "  border-radius: 6px;"
+        "  padding: 6px 10px;"
+        "  font-weight: bold;"
+        "  font-size: 11px;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #313c54;"
+        "  border-color: #63b3ed;"
+        "  color: #ffffff;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #1b212e;"
+        "}"
+    );
     connect(m_btnSound, &QPushButton::clicked, this, &MainWindow::onToggleSound);
     btnRow->addWidget(m_btnSound);
 
     m_btnRestart = new QPushButton("🔄 Restart", this);
+    m_btnRestart->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #242c3d;"
+        "  color: #f7fafc;"
+        "  border: 1px solid #37435f;"
+        "  border-radius: 6px;"
+        "  padding: 6px 10px;"
+        "  font-weight: bold;"
+        "  font-size: 11px;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #3d3428;"
+        "  border-color: #e2a03f;"
+        "  color: #f6ad55;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #262118;"
+        "}"
+    );
     connect(m_btnRestart, &QPushButton::clicked, this, &MainWindow::onRestartGame);
     btnRow->addWidget(m_btnRestart);
 
@@ -170,13 +208,21 @@ QWidget* MainWindow::createGameScreen() {
     m_btnMenu = new QPushButton("🏠 Main Menu", this);
     m_btnMenu->setStyleSheet(
         "QPushButton {"
-        "  background-color: #212534;"
-        "  color: #a0aec0;"
+        "  background-color: #2b364c;"
+        "  color: #90cdf4;"
+        "  border: 1px solid #3e5073;"
+        "  border-radius: 6px;"
+        "  padding: 6px 10px;"
+        "  font-weight: bold;"
         "  font-size: 11px;"
         "}"
         "QPushButton:hover {"
-        "  color: #FF4B82;"
-        "  border-color: #FF4B82;"
+        "  background-color: #364461;"
+        "  border-color: #63b3ed;"
+        "  color: #ffffff;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #1e2637;"
         "}"
     );
     connect(m_btnMenu, &QPushButton::clicked, this, &MainWindow::onReturnToMenu);

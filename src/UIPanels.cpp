@@ -10,8 +10,8 @@ StatCard::StatCard(const QString& title, const QString& initialValue, const QStr
 {
     setStyleSheet(
         "QFrame {"
-        "  background-color: #161822;"
-        "  border: 1px solid #2a2e3f;"
+        "  background-color: #161b26;"
+        "  border: 1px solid #283248;"
         "  border-radius: 8px;"
         "  padding: 6px;"
         "}"
@@ -22,7 +22,7 @@ StatCard::StatCard(const QString& title, const QString& initialValue, const QStr
     layout->setSpacing(2);
 
     m_lblTitle = new QLabel(title.toUpper(), this);
-    m_lblTitle->setStyleSheet("color: #7d8597; font-size: 11px; font-weight: bold; letter-spacing: 1px;");
+    m_lblTitle->setStyleSheet("color: #94a1b2; font-size: 11px; font-weight: bold; letter-spacing: 1px;");
 
     m_lblVal = new QLabel(initialValue, this);
     m_lblVal->setStyleSheet(QString("color: %1; font-size: 20px; font-weight: bold; font-family: 'Segoe UI', sans-serif;").arg(accentColor));
@@ -42,8 +42,8 @@ ComboBadge::ComboBadge(QWidget* parent)
 {
     setStyleSheet(
         "QFrame {"
-        "  background-color: #1a1528;"
-        "  border: 1px solid #ff4b82;"
+        "  background-color: #261a22;"
+        "  border: 1px solid #78364b;"
         "  border-radius: 8px;"
         "  padding: 4px;"
         "}"
@@ -54,7 +54,7 @@ ComboBadge::ComboBadge(QWidget* parent)
 
     m_lblCombo = new QLabel("COMBO: --", this);
     m_lblCombo->setAlignment(Qt::AlignCenter);
-    m_lblCombo->setStyleSheet("color: #ff4b82; font-size: 14px; font-weight: bold; letter-spacing: 1px;");
+    m_lblCombo->setStyleSheet("color: #e27d9a; font-size: 14px; font-weight: bold; letter-spacing: 1px;");
     layout->addWidget(m_lblCombo);
 
     setVisible(false);
@@ -167,8 +167,8 @@ ControlsGuideWidget::ControlsGuideWidget(QWidget* parent)
 {
     setStyleSheet(
         "QFrame {"
-        "  background-color: #12141c;"
-        "  border: 1px solid #1f2333;"
+        "  background-color: #161b26;"
+        "  border: 1px solid #283248;"
         "  border-radius: 8px;"
         "}"
     );
@@ -178,7 +178,7 @@ ControlsGuideWidget::ControlsGuideWidget(QWidget* parent)
     layout->setSpacing(4);
 
     auto* header = new QLabel("CONTROLS", this);
-    header->setStyleSheet("color: #7d8597; font-size: 11px; font-weight: bold; letter-spacing: 1px;");
+    header->setStyleSheet("color: #94a1b2; font-size: 11px; font-weight: bold; letter-spacing: 1px;");
     layout->addWidget(header);
 
     const std::vector<std::pair<QString, QString>> shortcuts = {
@@ -199,16 +199,17 @@ ControlsGuideWidget::ControlsGuideWidget(QWidget* parent)
 
         auto* lblKey = new QLabel(keys, this);
         lblKey->setStyleSheet(
-            "background-color: #212534;"
-            "color: #00E6FF;"
+            "background-color: #242c3d;"
+            "color: #7cb7ea;"
+            "border: 1px solid #37435f;"
             "font-size: 10px;"
             "font-family: Consolas, monospace;"
-            "padding: 1px 4px;"
-            "border-radius: 3px;"
+            "padding: 2px 5px;"
+            "border-radius: 4px;"
         );
 
         auto* lblDesc = new QLabel(desc, this);
-        lblDesc->setStyleSheet("color: #b0b8cb; font-size: 10px;");
+        lblDesc->setStyleSheet("color: #cbd5e0; font-size: 10px;");
 
         row->addWidget(lblKey);
         row->addStretch();

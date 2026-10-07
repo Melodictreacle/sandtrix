@@ -81,7 +81,9 @@ Tetromino::Tetromino(char shape, uint8_t colorIdx)
     m_matrixSize = (shape == 'I') ? 4 : ((shape == 'O') ? 2 : 3);
     m_maskWidth = m_matrixSize * MINO_SIZE;
     m_maskHeight = m_matrixSize * MINO_SIZE;
-    m_x = (BOARD_WIDTH - m_maskWidth) / 2;
+    int boardMinos = BOARD_WIDTH / MINO_SIZE;
+    int spawnCol = (boardMinos - m_matrixSize) / 2;
+    m_x = spawnCol * MINO_SIZE;
     updateGrainMask();
 }
 

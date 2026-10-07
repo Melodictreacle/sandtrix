@@ -20,6 +20,7 @@ public:
     const SandEngine& getEngine() const { return m_engine; }
     void setPalette(const ColorPalette& palette);
     const ColorPalette& getPalette() const { return m_palette; }
+    void applySettings(const GameSettings& settings);
 
     void restartGame();
 

@@ -10,14 +10,14 @@ MainWindow::MainWindow(QWidget* parent)
       m_canvas(nullptr)
 {
     setWindowTitle("SANDTRIX - Sand Tetris for Qt");
-    initLayout();
+    initStackedViews();
 
     auto* timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &MainWindow::syncUI);
     timer->start(30);
 }
 
-void MainWindow::initLayout() {
+void MainWindow::initStackedViews() {
     setStyleSheet(
         "QMainWindow {"
         "  background-color: #0b0d13;"
@@ -25,25 +25,6 @@ void MainWindow::initLayout() {
         "QWidget {"
         "  color: #e2e8f0;"
         "  font-family: 'Segoe UI', system-ui, sans-serif;"
-        "}"
-        "QComboBox {"
-        "  background-color: #161822;"
-        "  border: 1px solid #2a2e3f;"
-        "  border-radius: 6px;"
-        "  padding: 6px 12px;"
-        "  color: #00E6FF;"
-        "  font-weight: bold;"
-        "  font-size: 11px;"
-        "}"
-        "QComboBox::drop-down {"
-        "  border: none;"
-        "  width: 20px;"
-        "}"
-        "QComboBox QAbstractItemView {"
-        "  background-color: #161822;"
-        "  border: 1px solid #2a2e3f;"
-        "  selection-background-color: #212534;"
-        "  color: #e2e8f0;"
         "}"
         "QPushButton {"
         "  background-color: #1a1e2d;"
@@ -64,13 +45,44 @@ void MainWindow::initLayout() {
         "}"
     );
 
-    auto* centralWidget = new QWidget(this);
-    auto* mainLayout = new QHBoxLayout(centralWidget);
+    m_stack = new QStackedWidget(this);
+
+    // 0: Main Menu Screen
+    m_mainMenu = new MainMenuWidget(this);
+    m_mainMenu->updateSettingsBadge(m_settings);
+    connect(m_mainMenu, &MainMenuWidget::startClicked, this, &MainWindow::onStartGame);
+    connect(m_mainMenu, &MainMenuWidget::settingsClicked, this, &MainWindow::onOpenSettings);
+    connect(m_mainMenu, &MainMenuWidget::howToPlayClicked, this, &MainWindow::onOpenHowToPlay);
+    connect(m_mainMenu, &MainMenuWidget::exitClicked, this, &MainWindow::close);
+    m_stack->addWidget(m_mainMenu);
+
+    // 1: Settings Screen
+    m_settingsView = new SettingsWidget(m_settings, this);
+    connect(m_settingsView, &SettingsWidget::backClicked, this, &MainWindow::onReturnToMenu);
+    connect(m_settingsView, &SettingsWidget::settingsChanged, this, &MainWindow::onSettingsChanged);
+    m_stack->addWidget(m_settingsView);
+
+    // 2: How To Play Screen
+    m_howToPlayView = new HowToPlayWidget(this);
+    connect(m_howToPlayView, &HowToPlayWidget::backClicked, this, &MainWindow::onReturnToMenu);
+    m_stack->addWidget(m_howToPlayView);
+
+    // 3: Game Screen
+    m_gameScreen = createGameScreen();
+    m_stack->addWidget(m_gameScreen);
+
+    setCentralWidget(m_stack);
+    setFixedSize(sizeHint());
+}
+
+QWidget* MainWindow::createGameScreen() {
+    auto* gameContainer = new QWidget(this);
+    auto* mainLayout = new QHBoxLayout(gameContainer);
     mainLayout->setContentsMargins(18, 18, 18, 18);
     mainLayout->setSpacing(16);
 
     const auto& palettes = getAvailablePalettes();
-    const auto& defaultPalette = palettes[0];
+    const auto& defaultPalette = palettes[m_settings.paletteIndex];
 
     // ----------------- LEFT PANEL -----------------
     auto* leftPanel = new QVBoxLayout();
@@ -94,7 +106,7 @@ void MainWindow::initLayout() {
     leftPanel->addWidget(m_comboBadge);
     leftPanel->addStretch();
 
-    // ----------------- CENTER PANEL -----------------
+    // ----------------- CENTER CANVAS -----------------
     auto* centerPanel = new QVBoxLayout();
     centerPanel->setAlignment(Qt::AlignCenter);
 
@@ -116,7 +128,7 @@ void MainWindow::initLayout() {
         rightPanel->addWidget(prev);
     }
 
-    // Options Frame
+    // Locked In-Game Match Info Frame (No Mid-Game Modification!)
     auto* optionsFrame = new QFrame(this);
     optionsFrame->setStyleSheet(
         "QFrame {"
@@ -128,18 +140,19 @@ void MainWindow::initLayout() {
     );
     auto* optionsLayout = new QVBoxLayout(optionsFrame);
     optionsLayout->setContentsMargins(8, 8, 8, 8);
-    optionsLayout->setSpacing(8);
+    optionsLayout->setSpacing(6);
 
-    auto* lblPal = new QLabel("COLOR PALETTE", this);
-    lblPal->setStyleSheet("color: #7d8597; font-size: 10px; font-weight: bold; letter-spacing: 1px;");
-    optionsLayout->addWidget(lblPal);
+    auto* lblLockedHeader = new QLabel("RUN SETTINGS [LOCKED]", this);
+    lblLockedHeader->setStyleSheet("color: #7d8597; font-size: 9px; font-weight: bold; letter-spacing: 1px;");
+    optionsLayout->addWidget(lblLockedHeader);
 
-    m_comboPalette = new QComboBox(this);
-    for (const auto& p : palettes) {
-        m_comboPalette->addItem(p.name);
-    }
-    connect(m_comboPalette, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onPaletteChanged);
-    optionsLayout->addWidget(m_comboPalette);
+    m_lblLockedPalette = new QLabel("Palette: Cyber Neon", this);
+    m_lblLockedPalette->setStyleSheet("color: #00E6FF; font-size: 11px; font-weight: bold;");
+    optionsLayout->addWidget(m_lblLockedPalette);
+
+    m_lblLockedElements = new QLabel("Elements: ON", this);
+    m_lblLockedElements->setStyleSheet("color: #2ED573; font-size: 10px; font-weight: bold;");
+    optionsLayout->addWidget(m_lblLockedElements);
 
     auto* btnRow = new QHBoxLayout();
     btnRow->setSpacing(6);
@@ -153,23 +166,91 @@ void MainWindow::initLayout() {
     btnRow->addWidget(m_btnRestart);
 
     optionsLayout->addLayout(btnRow);
+
+    m_btnMenu = new QPushButton("🏠 Main Menu", this);
+    m_btnMenu->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #212534;"
+        "  color: #a0aec0;"
+        "  font-size: 11px;"
+        "}"
+        "QPushButton:hover {"
+        "  color: #FF4B82;"
+        "  border-color: #FF4B82;"
+        "}"
+    );
+    connect(m_btnMenu, &QPushButton::clicked, this, &MainWindow::onReturnToMenu);
+    optionsLayout->addWidget(m_btnMenu);
+
     rightPanel->addWidget(optionsFrame);
 
     m_controlsGuide = new ControlsGuideWidget(this);
     rightPanel->addWidget(m_controlsGuide);
     rightPanel->addStretch();
 
-    // Assemble main layout
+    // Assemble game layout
     mainLayout->addLayout(leftPanel);
     mainLayout->addLayout(centerPanel);
     mainLayout->addLayout(rightPanel);
 
-    setCentralWidget(centralWidget);
+    return gameContainer;
+}
+
+void MainWindow::onStartGame() {
+    const auto& palettes = getAvailablePalettes();
+    const auto& pal = (m_settings.paletteIndex < static_cast<int>(palettes.size())) ? palettes[m_settings.paletteIndex] : palettes[0];
+
+    // Lock in settings on canvas
+    m_canvas->applySettings(m_settings);
+    m_holdPreview->setPalette(pal);
+    for (auto* prev : m_nextPreviews) {
+        prev->setPalette(pal);
+    }
+
+    // Update locked info badges
+    m_lblLockedPalette->setText("Palette: " + pal.name);
+    m_lblLockedElements->setText(QString("Elements: %1 | Lvl %2").arg(m_settings.enableElements ? "ON" : "OFF").arg(m_settings.startingLevel));
+
+    // Update audio
+    m_audio.setMuted(!m_settings.soundEnabled);
+    m_audio.setVolume(m_settings.volume);
+    m_btnSound->setText(m_settings.soundEnabled ? "🔊 Sound" : "🔇 Muted");
+
+    // Switch to game screen
+    m_stack->setCurrentWidget(m_gameScreen);
+    m_canvas->restartGame();
+    m_canvas->setFocus();
     setFixedSize(sizeHint());
 }
 
+void MainWindow::onOpenSettings() {
+    m_stack->setCurrentWidget(m_settingsView);
+    setFixedSize(sizeHint());
+}
+
+void MainWindow::onOpenHowToPlay() {
+    m_stack->setCurrentWidget(m_howToPlayView);
+    setFixedSize(sizeHint());
+}
+
+void MainWindow::onReturnToMenu() {
+    if (m_canvas) {
+        m_canvas->getEngine().setPaused(true);
+    }
+    m_mainMenu->updateSettingsBadge(m_settings);
+    m_stack->setCurrentWidget(m_mainMenu);
+    setFixedSize(sizeHint());
+}
+
+void MainWindow::onSettingsChanged(const GameSettings& settings) {
+    m_settings = settings;
+    m_audio.setMuted(!settings.soundEnabled);
+    m_audio.setVolume(settings.volume);
+    m_mainMenu->updateSettingsBadge(m_settings);
+}
+
 void MainWindow::syncUI() {
-    if (!m_canvas) return;
+    if (!m_canvas || m_stack->currentWidget() != m_gameScreen) return;
     const SandEngine& eng = m_canvas->getEngine();
 
     m_cardScore->setValue(QLocale().toString(eng.getScore()));
@@ -190,26 +271,16 @@ void MainWindow::syncUI() {
     }
 }
 
-void MainWindow::onPaletteChanged(int index) {
-    const auto& palettes = getAvailablePalettes();
-    if (index >= 0 && index < static_cast<int>(palettes.size())) {
-        const auto& pal = palettes[index];
-        m_canvas->setPalette(pal);
-        m_holdPreview->setPalette(pal);
-        for (auto* prev : m_nextPreviews) {
-            prev->setPalette(pal);
-        }
-        m_canvas->setFocus();
-    }
-}
-
 void MainWindow::onToggleSound() {
     bool muted = m_audio.toggleMute();
+    m_settings.soundEnabled = !muted;
     m_btnSound->setText(muted ? "🔇 Muted" : "🔊 Sound");
-    m_canvas->setFocus();
+    if (m_canvas) m_canvas->setFocus();
 }
 
 void MainWindow::onRestartGame() {
-    m_canvas->restartGame();
-    m_canvas->setFocus();
+    if (m_canvas) {
+        m_canvas->restartGame();
+        m_canvas->setFocus();
+    }
 }

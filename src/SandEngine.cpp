@@ -23,17 +23,19 @@ int getGravityInterval(int level) {
 }
 } // namespace
 
-SandEngine::SandEngine(int numColors)
+SandEngine::SandEngine(int numColors, bool enableElements, int startLevel)
     : m_numColors(numColors),
+      m_startLevel(startLevel),
+      m_enableElements(enableElements),
       m_grid(BOARD_HEIGHT * BOARD_WIDTH, 0),
       m_score(0),
       m_highScore(0),
-      m_level(1),
+      m_level(startLevel),
       m_linesCleared(0),
       m_combo(0),
       m_gameOver(false),
       m_paused(false),
-      m_randomizer(numColors),
+      m_randomizer(numColors, enableElements),
       m_canHold(true),
       m_gravityTimer(0),
       m_lockTimer(0),
@@ -72,10 +74,17 @@ void SandEngine::setPaletteColorsCount(int numColors) {
     reset();
 }
 
+void SandEngine::applySettings(const GameSettings& settings, int numColors) {
+    m_numColors = numColors;
+    m_startLevel = settings.startingLevel;
+    m_enableElements = settings.enableElements;
+    reset();
+}
+
 void SandEngine::reset() {
     std::fill(m_grid.begin(), m_grid.end(), 0);
     m_score = 0;
-    m_level = 1;
+    m_level = m_startLevel;
     m_linesCleared = 0;
     m_combo = 0;
     m_gameOver = false;
@@ -88,7 +97,7 @@ void SandEngine::reset() {
     m_isSandMoving = false;
     m_lastDropHadClear = false;
 
-    m_randomizer = BagRandomizer(m_numColors);
+    m_randomizer = BagRandomizer(m_numColors, m_enableElements);
     m_nextQueue.clear();
     refillNextQueue();
     spawnPiece();
@@ -297,13 +306,11 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
                 } else if (below != MATERIAL_ACID && below != 0) {
-                    // Corrode sand or water below!
-                    m_grid[(y + 1) * BOARD_WIDTH + x] = 0; // dissolves target
-                    m_grid[y * BOARD_WIDTH + x] = 0;       // acid consumed
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = 0;
+                    m_grid[y * BOARD_WIDTH + x] = 0;
                     if (outAcidCorroded) outAcidCorroded->push_back({y + 1, x});
                     moved = true;
                 } else {
-                    // Down Diagonals
                     bool dlEmpty = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0);
                     bool drEmpty = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0);
                     if (dlEmpty && drEmpty) {
@@ -326,19 +333,15 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
             else {
                 uint8_t below = m_grid[(y + 1) * BOARD_WIDTH + x];
                 
-                // A. Straight Down (Air or Sinking through Water!)
                 if (below == 0) {
                     m_grid[(y + 1) * BOARD_WIDTH + x] = mat;
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
                 } else if (below == MATERIAL_WATER) {
-                    // Sand is denser than water: Sand sinks, Water floats up!
                     m_grid[(y + 1) * BOARD_WIDTH + x] = mat;
                     m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
                     moved = true;
-                }
-                // B. Down Diagonals
-                else {
+                } else {
                     bool dlOk = (x > 0 && (m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER));
                     bool drOk = (x < BOARD_WIDTH - 1 && (m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER));
 
@@ -373,10 +376,11 @@ std::pair<int, int> SandEngine::checkLineClears(std::vector<std::pair<int, int>>
 
     std::vector<bool> visited(BOARD_HEIGHT * BOARD_WIDTH, false);
 
-    // Check all standard colors plus Water
     std::vector<int> colorsToCheck;
     for (int c = 1; c <= m_numColors; ++c) colorsToCheck.push_back(c);
-    colorsToCheck.push_back(MATERIAL_WATER); // Water edge-to-edge can clear!
+    if (m_enableElements) {
+        colorsToCheck.push_back(MATERIAL_WATER);
+    }
 
     for (int color : colorsToCheck) {
         std::vector<int> startRows;
@@ -476,7 +480,7 @@ EngineTickEvent SandEngine::tick(int dtMs) {
         }
 
         m_linesCleared += bandsCount;
-        m_level = 1 + (m_linesCleared / 5);
+        m_level = m_startLevel + (m_linesCleared / 5);
         m_lastDropHadClear = true;
 
         event.cleared = true;

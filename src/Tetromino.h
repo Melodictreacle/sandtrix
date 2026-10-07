@@ -55,8 +55,11 @@ private:
 
 class BagRandomizer {
 public:
-    explicit BagRandomizer(int numColors = 4);
+    explicit BagRandomizer(int numColors = 4, bool enableElements = true);
     void setNumColors(int numColors) { m_numColors = numColors; }
+    void setEnableElements(bool enable) { m_enableElements = enable; }
+    bool getEnableElements() const { return m_enableElements; }
+
     std::unique_ptr<Tetromino> nextPiece();
     std::vector<std::unique_ptr<Tetromino>> peekNext(int count);
 
@@ -65,6 +68,7 @@ private:
     uint8_t pickColor(size_t sequenceIndex);
 
     int m_numColors;
+    bool m_enableElements;
     std::vector<char> m_bag;
     int m_piecesSpawned;
 };

@@ -98,3 +98,12 @@ inline const std::vector<ColorPalette>& getAvailablePalettes() {
     };
     return palettes;
 }
+
+// Game Settings chosen before game start
+struct GameSettings {
+    int paletteIndex = 0;
+    int startingLevel = 1;
+    bool enableElements = true;
+    bool soundEnabled = true;
+    float volume = 0.65f;
+};

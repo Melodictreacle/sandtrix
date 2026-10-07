@@ -25,10 +25,11 @@ struct EngineTickEvent {
 
 class SandEngine {
 public:
-    explicit SandEngine(int numColors = 4);
+    explicit SandEngine(int numColors = 4, bool enableElements = true, int startLevel = 1);
 
     void reset();
     void setPaletteColorsCount(int numColors);
+    void applySettings(const GameSettings& settings, int numColors);
 
     bool spawnPiece();
     bool holdCurrentPiece();
@@ -66,6 +67,8 @@ private:
     std::pair<int, int> checkLineClears(std::vector<std::pair<int, int>>& outCoords, uint8_t& outLastColor);
 
     int m_numColors;
+    int m_startLevel;
+    bool m_enableElements;
     std::vector<uint8_t> m_grid; // size BOARD_HEIGHT * BOARD_WIDTH
 
     int m_score;

@@ -15,7 +15,8 @@ SOURCES += \
     src/AudioManager.cpp \
     src/UIPanels.cpp \
     src/GameCanvas.cpp \
-    src/MainWindow.cpp
+    src/MainWindow.cpp \
+    src/MenuWidgets.cpp
 
 HEADERS += \
     src/Config.h \
@@ -25,4 +26,5 @@ HEADERS += \
     src/AudioManager.h \
     src/UIPanels.h \
     src/GameCanvas.h \
-    src/MainWindow.h
+    src/MainWindow.h \
+    src/MenuWidgets.h

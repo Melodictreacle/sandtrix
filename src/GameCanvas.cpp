@@ -34,6 +34,19 @@ void GameCanvas::setPalette(const ColorPalette& palette) {
     emit stateChanged();
 }
 
+void GameCanvas::applySettings(const GameSettings& settings) {
+    const auto& palettes = getAvailablePalettes();
+    if (settings.paletteIndex >= 0 && settings.paletteIndex < static_cast<int>(palettes.size())) {
+        m_palette = palettes[settings.paletteIndex];
+        int numColors = static_cast<int>(m_palette.colors.size() - 1);
+        m_engine.applySettings(settings, numColors);
+        m_particles.clear();
+        m_gameOverSoundPlayed = false;
+        update();
+        emit stateChanged();
+    }
+}
+
 void GameCanvas::restartGame() {
     m_engine.reset();
     m_particles.clear();

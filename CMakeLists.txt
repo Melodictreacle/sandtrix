@@ -20,6 +20,7 @@ set(SOURCES
     src/UIPanels.cpp
     src/GameCanvas.cpp
     src/MainWindow.cpp
+    src/MenuWidgets.cpp
 )
 
 set(HEADERS
@@ -31,6 +32,7 @@ set(HEADERS
     src/UIPanels.h
     src/GameCanvas.h
     src/MainWindow.h
+    src/MenuWidgets.h
 )
 
 add_executable(sandtrix

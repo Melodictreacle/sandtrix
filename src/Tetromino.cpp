@@ -196,8 +196,8 @@ std::vector<GrainCoord> Tetromino::getOccupiedGrains() const {
 
 // ------------------- BagRandomizer -------------------
 
-BagRandomizer::BagRandomizer(int numColors)
-    : m_numColors(numColors), m_piecesSpawned(0)
+BagRandomizer::BagRandomizer(int numColors, bool enableElements)
+    : m_numColors(numColors), m_enableElements(enableElements), m_piecesSpawned(0)
 {
     refillBag();
 }
@@ -213,14 +213,15 @@ uint8_t BagRandomizer::pickColor(size_t sequenceIndex) {
     static std::random_device rd;
     static std::mt19937 rng(rd());
 
-    // Periodically spawn elemental pieces (Water ~15%, Acid ~7%)
-    std::uniform_real_distribution<float> chanceDist(0.0f, 1.0f);
-    float roll = chanceDist(rng);
+    if (m_enableElements) {
+        std::uniform_real_distribution<float> chanceDist(0.0f, 1.0f);
+        float roll = chanceDist(rng);
 
-    if (roll < 0.15f) {
-        return MATERIAL_WATER; // 🌊 Water block!
-    } else if (roll < 0.22f) {
-        return MATERIAL_ACID;  // ☣ Acid block!
+        if (roll < 0.15f) {
+            return MATERIAL_WATER; // 🌊 Water block!
+        } else if (roll < 0.22f) {
+            return MATERIAL_ACID;  // ☣ Acid block!
+        }
     }
 
     std::uniform_int_distribution<int> dist(1, m_numColors);
@@ -256,10 +257,11 @@ std::vector<std::unique_ptr<Tetromino>> BagRandomizer::peekNext(int count) {
         tempBag.pop_back();
 
         simCount++;
-        // Use deterministic hash for preview to match
         uint8_t col = static_cast<uint8_t>((std::hash<char>{}(shape) + simCount) % m_numColors + 1);
-        if (simCount % 7 == 0) col = MATERIAL_WATER;
-        else if (simCount % 13 == 0) col = MATERIAL_ACID;
+        if (m_enableElements) {
+            if (simCount % 7 == 0) col = MATERIAL_WATER;
+            else if (simCount % 13 == 0) col = MATERIAL_ACID;
+        }
 
         previews.push_back(std::make_unique<Tetromino>(shape, col));
     }

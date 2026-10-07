@@ -10,6 +10,7 @@
 
 struct EngineTickEvent {
     bool cleared = false;
+    bool isTidalWave = false;
     int grains = 0;
     int bands = 0;
     std::vector<std::pair<int, int>> coords; // (y, x)
@@ -17,6 +18,9 @@ struct EngineTickEvent {
     int combo = 0;
     int points = 0;
     bool landed = false;
+    bool landedWater = false;
+    bool landedAcid = false;
+    std::vector<std::pair<int, int>> acidCorrodedCoords;
 };
 
 class SandEngine {
@@ -31,9 +35,9 @@ public:
     bool movePiece(int dx);
     bool rotatePiece(int direction);
     bool hardDrop(int& outX, int& outY, std::vector<std::pair<int, int>>& outImpactCoords);
-    void lockActivePiece();
+    void lockActivePiece(EngineTickEvent* outEvent = nullptr);
 
-    bool updatePhysics();
+    bool updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded = nullptr);
     EngineTickEvent tick(int dtMs);
 
     // Getters

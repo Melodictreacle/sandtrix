@@ -153,6 +153,32 @@ void AudioManager::initAudioAssets() {
         });
     }
     loadEffect("game_over", goPath);
+
+    // 7. Water Splash Sound
+    QString splashPath = "sounds/splash.wav";
+    if (!QFile::exists(splashPath)) {
+        generateWav(splashPath, 0.18, sampleRate, [](double t, double d, int) {
+            double freq = 350.0 + 400.0 * std::sin(2.0 * PI * 8.0 * t);
+            double env = std::exp(-12.0 * t / d);
+            double bubble = std::sin(2.0 * PI * freq * t) * 0.6;
+            return bubble * env;
+        });
+    }
+    loadEffect("splash", splashPath);
+
+    // 8. Acid Sizzle Sound
+    QString sizzlePath = "sounds/sizzle.wav";
+    if (!QFile::exists(sizzlePath)) {
+        static std::mt19937 sizzleRng(77);
+        static std::uniform_real_distribution<double> sizzleDist(-1.0, 1.0);
+        generateWav(sizzlePath, 0.15, sampleRate, [](double t, double d, int) {
+            double env = std::exp(-10.0 * t / d);
+            double noise = sizzleDist(sizzleRng) * 0.5;
+            double highPitch = 0.3 * std::sin(2.0 * PI * 1800.0 * t);
+            return (noise + highPitch) * env;
+        });
+    }
+    loadEffect("sizzle", sizzlePath);
 }
 
 void AudioManager::loadEffect(const QString& name, const QString& filepath) {
@@ -206,4 +232,12 @@ void AudioManager::playClear(int combo) {
 
 void AudioManager::playGameOver() {
     playEffect("game_over");
+}
+
+void AudioManager::playWaterSplash() {
+    playEffect("splash");
+}
+
+void AudioManager::playAcidSizzle() {
+    playEffect("sizzle");
 }

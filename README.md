@@ -1,8 +1,22 @@
 # ⏳ SANDTRIX - Sand Tetris for Qt (C++)
 
-A high-performance, polished C++ implementation of **Sandtrix** (Sand Tetris) designed for **Qt Creator** using **Qt 6** and modern **C++17**.
+A high-performance, polished C++ implementation of **Sandtrix** (Sand Tetris) designed for **Qt Creator** using **Qt 6** and modern **C++17**, featuring an **Elemental Materials System** (Liquid / Water & Acid blocks)!
 
 Falling tetromino blocks dissolve into loose sand grains upon landing, and lines are cleared when matching sand colors form an unbroken path from the left wall to the right wall!
+
+---
+
+## 🌊 Elemental Materials System
+
+In addition to standard colored sand, special elemental pieces drop periodically:
+
+1. **🌊 Water / Liquid Blocks**:
+   - **Fluid Dynamics**: Unlike sand which rests at a 45° angle, water flows **horizontally** to level out, seeking low crevices and filling deep holes flat.
+   - **Buoyancy / Density Displacement**: Sand is denser than water! When sand lands on water, the sand **sinks to the bottom** and displaces the water upward, forming realistic sandbars and rising pools.
+   - **🌊 Tidal Wave Clear**: When water bridges the left wall to the right wall, it triggers a **Tidal Wave** with aquatic splash particles and double line clear bonus points (+800)!
+
+2. **☣ Acid / Dissolver Blocks**:
+   - **Corrosive Reaction**: Rare radioactive green pieces that eat through and dissolve sand directly below them on contact, helping dig through tall piles before neutralizing with a bubbling sizzle effect!
 
 ---
 
@@ -14,7 +28,7 @@ Falling tetromino blocks dissolve into loose sand grains upon landing, and lines
 3. Navigate to `C:\Users\omega\Desktop\sandtrix` and select [`CMakeLists.txt`](file:///C:/Users/omega/Desktop/sandtrix/CMakeLists.txt).
 4. On the **Configure Project** screen, choose the **Desktop Qt 6.12.0 MinGW 64-bit** kit.
 5. Click **Configure Project**.
-6. Click the green **Run** button at the bottom-left (or press `Ctrl + R`).
+6. Click the green **Run** button at the bottom-left of Qt Creator (or press `Ctrl + R`).
 
 ### Method 2: Using qmake
 1. In Qt Creator, select **File → Open File or Project...**
@@ -24,15 +38,6 @@ Falling tetromino blocks dissolve into loose sand grains upon landing, and lines
 
 ### Method 3: One-Click Quick Run (Command Line / Explorer)
 Simply double-click [`build.bat`](file:///C:/Users/omega/Desktop/sandtrix/build.bat) inside the `sandtrix` folder to compile and launch automatically.
-
----
-
-## 🌟 Game Mechanics
-
-1. **Rigid Falling Tetrominoes**: Blocks fall in classic shapes (`I`, `O`, `T`, `S`, `Z`, `J`, `L`) that you can steer, rotate, and hold.
-2. **Falling Sand Cellular Automata**: Upon landing on the floor or resting sand, the tetromino dissolves into loose sand grains that cascade and tumble naturally with a 45° angle of repose.
-3. **Edge-to-Edge Line Clears**: A clear triggers whenever grains of the **same color** connect the **left wall** (`x = 0`) to the **right wall** (`x = Width - 1`) through an unbroken 8-way connected path.
-4. **Avalanche Combos**: Cleared sand collapses, allowing sand on top to avalanche down. If the cascade bridges the walls again, a **Combo Clear** triggers with exponential score multipliers!
 
 ---
 
@@ -60,18 +65,19 @@ sandtrix/
 ├── sandtrix.pro          # Alternative Qt Creator project configuration (qmake)
 ├── build.bat             # One-click build & run script
 ├── README.md             # Documentation and instructions
+├── .github/workflows/    # Automated GitHub Actions CI workflow
 ├── src/
 │   ├── main.cpp          # Application entry point, dark Fusion palette
-│   ├── Config.h          # Grid dimensions (80x140), timings, scoring, color palettes
-│   ├── Tetromino.h       # Mino matrices, SRS wall kicks, 7-bag randomizer
+│   ├── Config.h          # Grid dimensions, timings, scoring, elemental materials & palettes
+│   ├── Tetromino.h       # Mino matrices, SRS wall kicks, elemental piece identification
 │   ├── Tetromino.cpp
-│   ├── SandEngine.h      # Cellular automata sand physics, 8-way BFS edge-to-edge clears
+│   ├── SandEngine.h      # Cellular automata, fluid lateral flow, density buoyancy, acid corrosion
 │   ├── SandEngine.cpp
-│   ├── ParticleSystem.h  # Sand spark bursts, floating popups, screen shake
+│   ├── ParticleSystem.h  # Sand sparks, water splashes, acid bubbles, floating text, screen shake
 │   ├── ParticleSystem.cpp
-│   ├── AudioManager.h    # Procedural sound synthesizer with QSoundEffect
+│   ├── AudioManager.h    # Procedural sound synthesizer (clicks, drops, chimes, splashes, sizzles)
 │   ├── AudioManager.cpp
-│   ├── UIPanels.h        # Stat cards, combo badges, next/hold previews, controls guide
+│   ├── UIPanels.h        # Stat cards, combo badges, next/hold previews with elemental badges
 │   ├── UIPanels.cpp
 │   ├── GameCanvas.h      # 60 FPS interactive canvas, direct QImage pixel blit, ghost piece
 │   ├── GameCanvas.cpp

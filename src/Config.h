@@ -31,6 +31,14 @@ constexpr int POINTS_PER_GRAIN = 5;
 constexpr int POINTS_PER_BAND = 400;
 constexpr double COMBO_MULTIPLIER_BASE = 1.5;
 
+// Special Elemental Material IDs
+constexpr uint8_t MATERIAL_WATER = 50;   // Liquid: flows horizontally, displaced upward by sinking sand
+constexpr uint8_t MATERIAL_ACID  = 51;   // Acid: dissolves sand directly below it on contact
+
+// Material Colors
+inline QColor getWaterColor() { return QColor(0, 185, 255); }
+inline QColor getAcidColor()  { return QColor(57, 255, 20); }
+
 // Color Palette struct
 struct ColorPalette {
     QString name;

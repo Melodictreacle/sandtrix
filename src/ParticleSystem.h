@@ -43,6 +43,8 @@ public:
     ParticleManager();
 
     void addClearedSandSparks(const std::vector<std::pair<int, int>>& coords, const QColor& color);
+    void addWaterSplash(float pixelX, float pixelY, int count = 30);
+    void addAcidBubbles(const std::vector<std::pair<int, int>>& coords);
     void addLandingDust(float pixelX, float pixelY, const QColor& color, int count = 15);
     void addFloatingText(float x, float y, const QString& text, const QColor& color, int fontSize = 14);
     void triggerShake(float intensity = 6.0f);

@@ -176,8 +176,15 @@ bool SandEngine::hardDrop(int& outX, int& outY, std::vector<std::pair<int, int>>
     return true;
 }
 
-void SandEngine::lockActivePiece() {
+void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
     if (!m_activePiece) return;
+
+    bool isWater = m_activePiece->isWater();
+    bool isAcid = m_activePiece->isAcid();
+    if (outEvent) {
+        outEvent->landedWater = isWater;
+        outEvent->landedAcid = isAcid;
+    }
 
     for (const auto& g : m_activePiece->getOccupiedGrains()) {
         if (g.y >= 0 && g.y < BOARD_HEIGHT && g.x >= 0 && g.x < BOARD_WIDTH) {
@@ -207,54 +214,151 @@ void SandEngine::lockActivePiece() {
     spawnPiece();
 }
 
-bool SandEngine::updatePhysics() {
+bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded) {
     bool moved = false;
     static std::random_device rd;
     static std::mt19937 g(rd());
 
-    std::vector<int> sandXs;
-    sandXs.reserve(BOARD_WIDTH);
+    std::vector<int> colXs;
+    colXs.reserve(BOARD_WIDTH);
 
     // Process from bottom row up
     for (int y = BOARD_HEIGHT - 2; y >= 0; --y) {
-        sandXs.clear();
+        colXs.clear();
         for (int x = 0; x < BOARD_WIDTH; ++x) {
             if (m_grid[y * BOARD_WIDTH + x] > 0) {
-                sandXs.push_back(x);
+                colXs.push_back(x);
             }
         }
 
-        if (sandXs.empty()) continue;
+        if (colXs.empty()) continue;
 
-        std::shuffle(sandXs.begin(), sandXs.end(), g);
+        std::shuffle(colXs.begin(), colXs.end(), g);
 
-        for (int x : sandXs) {
-            uint8_t color = m_grid[y * BOARD_WIDTH + x];
-            if (color == 0) continue;
+        for (int x : colXs) {
+            uint8_t mat = m_grid[y * BOARD_WIDTH + x];
+            if (mat == 0) continue;
 
-            // 1. Straight down
-            if (m_grid[(y + 1) * BOARD_WIDTH + x] == 0) {
-                m_grid[(y + 1) * BOARD_WIDTH + x] = color;
-                m_grid[y * BOARD_WIDTH + x] = 0;
-                moved = true;
-            } else {
-                // 2. Diagonals
-                bool leftOk = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0);
-                bool rightOk = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0);
-
-                if (leftOk && rightOk) {
-                    int nx = (std::uniform_int_distribution<int>(0, 1)(g) == 0) ? (x - 1) : (x + 1);
-                    m_grid[(y + 1) * BOARD_WIDTH + nx] = color;
+            // ==================== 1. WATER (FLUID) DYNAMICS ====================
+            if (mat == MATERIAL_WATER) {
+                // A. Straight Down
+                if (m_grid[(y + 1) * BOARD_WIDTH + x] == 0) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_WATER;
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
-                } else if (leftOk) {
-                    m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = color;
+                }
+                // B. Down Diagonals
+                else {
+                    bool dlEmpty = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0);
+                    bool drEmpty = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0);
+
+                    if (dlEmpty && drEmpty) {
+                        int nx = (std::uniform_int_distribution<int>(0, 1)(g) == 0) ? (x - 1) : (x + 1);
+                        m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_WATER;
+                        m_grid[y * BOARD_WIDTH + x] = 0;
+                        moved = true;
+                    } else if (dlEmpty) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_WATER;
+                        m_grid[y * BOARD_WIDTH + x] = 0;
+                        moved = true;
+                    } else if (drEmpty) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_WATER;
+                        m_grid[y * BOARD_WIDTH + x] = 0;
+                        moved = true;
+                    }
+                    // C. Lateral Flow (Fluid seeks flat surface)
+                    else {
+                        bool leftEmpty = (x > 0 && m_grid[y * BOARD_WIDTH + (x - 1)] == 0);
+                        bool rightEmpty = (x < BOARD_WIDTH - 1 && m_grid[y * BOARD_WIDTH + (x + 1)] == 0);
+
+                        if (leftEmpty && rightEmpty) {
+                            int nx = (std::uniform_int_distribution<int>(0, 1)(g) == 0) ? (x - 1) : (x + 1);
+                            m_grid[y * BOARD_WIDTH + nx] = MATERIAL_WATER;
+                            m_grid[y * BOARD_WIDTH + x] = 0;
+                            moved = true;
+                        } else if (leftEmpty) {
+                            m_grid[y * BOARD_WIDTH + (x - 1)] = MATERIAL_WATER;
+                            m_grid[y * BOARD_WIDTH + x] = 0;
+                            moved = true;
+                        } else if (rightEmpty) {
+                            m_grid[y * BOARD_WIDTH + (x + 1)] = MATERIAL_WATER;
+                            m_grid[y * BOARD_WIDTH + x] = 0;
+                            moved = true;
+                        }
+                    }
+                }
+            }
+            // ==================== 2. ACID (CORROSION) DYNAMICS ====================
+            else if (mat == MATERIAL_ACID) {
+                // A. Straight Down
+                uint8_t below = m_grid[(y + 1) * BOARD_WIDTH + x];
+                if (below == 0) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ACID;
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
-                } else if (rightOk) {
-                    m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = color;
+                } else if (below != MATERIAL_ACID && below != 0) {
+                    // Corrode sand or water below!
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = 0; // dissolves target
+                    m_grid[y * BOARD_WIDTH + x] = 0;       // acid consumed
+                    if (outAcidCorroded) outAcidCorroded->push_back({y + 1, x});
+                    moved = true;
+                } else {
+                    // Down Diagonals
+                    bool dlEmpty = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0);
+                    bool drEmpty = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0);
+                    if (dlEmpty && drEmpty) {
+                        int nx = (std::uniform_int_distribution<int>(0, 1)(g) == 0) ? (x - 1) : (x + 1);
+                        m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_ACID;
+                        m_grid[y * BOARD_WIDTH + x] = 0;
+                        moved = true;
+                    } else if (dlEmpty) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_ACID;
+                        m_grid[y * BOARD_WIDTH + x] = 0;
+                        moved = true;
+                    } else if (drEmpty) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_ACID;
+                        m_grid[y * BOARD_WIDTH + x] = 0;
+                        moved = true;
+                    }
+                }
+            }
+            // ==================== 3. SAND DYNAMICS (BUOYANCY INTERACTION) ====================
+            else {
+                uint8_t below = m_grid[(y + 1) * BOARD_WIDTH + x];
+                
+                // A. Straight Down (Air or Sinking through Water!)
+                if (below == 0) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = mat;
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
+                } else if (below == MATERIAL_WATER) {
+                    // Sand is denser than water: Sand sinks, Water floats up!
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = mat;
+                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
+                    moved = true;
+                }
+                // B. Down Diagonals
+                else {
+                    bool dlOk = (x > 0 && (m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER));
+                    bool drOk = (x < BOARD_WIDTH - 1 && (m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER));
+
+                    if (dlOk && drOk) {
+                        int nx = (std::uniform_int_distribution<int>(0, 1)(g) == 0) ? (x - 1) : (x + 1);
+                        uint8_t targetVal = m_grid[(y + 1) * BOARD_WIDTH + nx];
+                        m_grid[(y + 1) * BOARD_WIDTH + nx] = mat;
+                        m_grid[y * BOARD_WIDTH + x] = (targetVal == MATERIAL_WATER) ? MATERIAL_WATER : 0;
+                        moved = true;
+                    } else if (dlOk) {
+                        uint8_t targetVal = m_grid[(y + 1) * BOARD_WIDTH + (x - 1)];
+                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = mat;
+                        m_grid[y * BOARD_WIDTH + x] = (targetVal == MATERIAL_WATER) ? MATERIAL_WATER : 0;
+                        moved = true;
+                    } else if (drOk) {
+                        uint8_t targetVal = m_grid[(y + 1) * BOARD_WIDTH + (x + 1)];
+                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = mat;
+                        m_grid[y * BOARD_WIDTH + x] = (targetVal == MATERIAL_WATER) ? MATERIAL_WATER : 0;
+                        moved = true;
+                    }
                 }
             }
         }
@@ -269,7 +373,12 @@ std::pair<int, int> SandEngine::checkLineClears(std::vector<std::pair<int, int>>
 
     std::vector<bool> visited(BOARD_HEIGHT * BOARD_WIDTH, false);
 
-    for (int color = 1; color <= m_numColors; ++color) {
+    // Check all standard colors plus Water
+    std::vector<int> colorsToCheck;
+    for (int c = 1; c <= m_numColors; ++c) colorsToCheck.push_back(c);
+    colorsToCheck.push_back(MATERIAL_WATER); // Water edge-to-edge can clear!
+
+    for (int color : colorsToCheck) {
         std::vector<int> startRows;
         for (int y = 0; y < BOARD_HEIGHT; ++y) {
             if (m_grid[y * BOARD_WIDTH + 0] == color) {
@@ -325,11 +434,9 @@ std::pair<int, int> SandEngine::checkLineClears(std::vector<std::pair<int, int>>
     }
 
     if (!outCoords.empty()) {
-        // Deduplicate
         std::sort(outCoords.begin(), outCoords.end());
         outCoords.erase(std::unique(outCoords.begin(), outCoords.end()), outCoords.end());
 
-        // Clear cells from grid
         for (const auto& [cy, cx] : outCoords) {
             m_grid[cy * BOARD_WIDTH + cx] = 0;
         }
@@ -346,7 +453,7 @@ EngineTickEvent SandEngine::tick(int dtMs) {
     // 1. Update sand cellular automata physics sub-steps
     bool anyMoved = false;
     for (int s = 0; s < PHYSICS_SUBSTEPS; ++s) {
-        if (updatePhysics()) {
+        if (updatePhysics(&event.acidCorrodedCoords)) {
             anyMoved = true;
         }
     }
@@ -360,7 +467,8 @@ EngineTickEvent SandEngine::tick(int dtMs) {
     if (bandsCount > 0) {
         m_combo++;
         double comboMult = std::pow(COMBO_MULTIPLIER_BASE, m_combo - 1);
-        int points = static_cast<int>((grainsCount * POINTS_PER_GRAIN + bandsCount * POINTS_PER_BAND) * comboMult * m_level);
+        int bonusPerBand = (clearedCol == MATERIAL_WATER) ? (POINTS_PER_BAND * 2) : POINTS_PER_BAND;
+        int points = static_cast<int>((grainsCount * POINTS_PER_GRAIN + bandsCount * bonusPerBand) * comboMult * m_level);
         m_score += points;
         if (m_score > m_highScore) {
             m_highScore = m_score;
@@ -372,6 +480,7 @@ EngineTickEvent SandEngine::tick(int dtMs) {
         m_lastDropHadClear = true;
 
         event.cleared = true;
+        event.isTidalWave = (clearedCol == MATERIAL_WATER);
         event.grains = grainsCount;
         event.bands = bandsCount;
         event.coords = clearedCoords;
@@ -397,7 +506,7 @@ EngineTickEvent SandEngine::tick(int dtMs) {
             } else {
                 m_lockTimer += gravityInterval;
                 if (m_lockTimer >= LOCK_DELAY_MS || m_isSoftDropping) {
-                    lockActivePiece();
+                    lockActivePiece(&event);
                     event.landed = true;
                 }
             }

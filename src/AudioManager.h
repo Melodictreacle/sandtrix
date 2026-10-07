@@ -24,6 +24,8 @@ public:
     void playLock();
     void playClear(int combo = 1);
     void playGameOver();
+    void playWaterSplash();
+    void playAcidSizzle();
 
 private:
     void initAudioAssets();

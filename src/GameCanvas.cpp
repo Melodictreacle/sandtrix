@@ -63,12 +63,29 @@ void GameCanvas::onGameLoop() {
     // Engine tick
     EngineTickEvent event = m_engine.tick(dt);
 
-    if (event.landed) {
+    if (event.landedWater) {
+        if (m_audio) m_audio->playWaterSplash();
+    } else if (event.landedAcid) {
+        if (m_audio) m_audio->playAcidSizzle();
+    } else if (event.landed) {
         if (m_audio) m_audio->playLock();
     }
 
+    if (!event.acidCorrodedCoords.empty()) {
+        m_particles.addAcidBubbles(event.acidCorrodedCoords);
+        if (m_audio) m_audio->playAcidSizzle();
+    }
+
     if (event.cleared) {
-        QColor col = m_palette.colors[event.color % m_palette.colors.size()];
+        QColor col;
+        if (event.isTidalWave) {
+            col = getWaterColor();
+            m_particles.addWaterSplash(CANVAS_WIDTH / 2.0f, 300.0f, 60);
+            if (m_audio) m_audio->playWaterSplash();
+        } else {
+            col = m_palette.colors[event.color % m_palette.colors.size()];
+        }
+
         m_particles.addClearedSandSparks(event.coords, col);
 
         // Calculate vertical center of cleared sand for floating text
@@ -79,7 +96,13 @@ void GameCanvas::onGameLoop() {
             midY = (sumY / static_cast<int>(event.coords.size())) * CELL_DISPLAY_SIZE;
         }
 
-        if (event.combo > 1) {
+        if (event.isTidalWave) {
+            m_particles.addFloatingText(
+                CANVAS_WIDTH / 2.0f - 65.0f, static_cast<float>(midY),
+                QString("🌊 TIDAL WAVE! +%1").arg(event.points),
+                col, 16
+            );
+        } else if (event.combo > 1) {
             m_particles.addFloatingText(
                 CANVAS_WIDTH / 2.0f - 50.0f, static_cast<float>(midY),
                 QString("COMBO x%1! +%2").arg(event.combo).arg(event.points),
@@ -165,13 +188,23 @@ void GameCanvas::keyPressEvent(QKeyEvent* event) {
     } else if (key == Qt::Key_Space) {
         int lx = 0, ly = 0;
         std::vector<std::pair<int, int>> impactCoords;
+        bool wasWater = (m_engine.getActivePiece() && m_engine.getActivePiece()->isWater());
+        bool wasAcid = (m_engine.getActivePiece() && m_engine.getActivePiece()->isAcid());
+
         if (m_engine.hardDrop(lx, ly, impactCoords)) {
-            if (m_audio) m_audio->playDrop();
-            m_particles.triggerShake(4.0f);
-            if (!impactCoords.empty()) {
-                QColor col = m_palette.colors[1 % m_palette.colors.size()];
-                m_particles.addLandingDust(lx * CELL_DISPLAY_SIZE + 20, ly * CELL_DISPLAY_SIZE, col);
+            if (wasWater) {
+                if (m_audio) m_audio->playWaterSplash();
+                m_particles.addWaterSplash(lx * CELL_DISPLAY_SIZE + 20, ly * CELL_DISPLAY_SIZE, 35);
+            } else if (wasAcid) {
+                if (m_audio) m_audio->playAcidSizzle();
+            } else {
+                if (m_audio) m_audio->playDrop();
+                if (!impactCoords.empty()) {
+                    QColor col = m_palette.colors[1 % m_palette.colors.size()];
+                    m_particles.addLandingDust(lx * CELL_DISPLAY_SIZE + 20, ly * CELL_DISPLAY_SIZE, col);
+                }
             }
+            m_particles.triggerShake(4.0f);
         }
     } else if (key == Qt::Key_C || key == Qt::Key_Shift) {
         if (m_engine.holdCurrentPiece()) {
@@ -217,10 +250,18 @@ void GameCanvas::paintEvent(QPaintEvent*) {
     for (size_t i = 0; i < numPalColors; ++i) {
         paletteRgb[i] = m_palette.colors[i].rgb();
     }
+    uint32_t waterRgb = getWaterColor().rgb();
+    uint32_t acidRgb = getAcidColor().rgb();
 
     for (int i = 0; i < BOARD_WIDTH * BOARD_HEIGHT; ++i) {
         uint8_t c = grid[i];
-        bits[i] = paletteRgb[c % numPalColors];
+        if (c == MATERIAL_WATER) {
+            bits[i] = waterRgb;
+        } else if (c == MATERIAL_ACID) {
+            bits[i] = acidRgb;
+        } else {
+            bits[i] = paletteRgb[c % numPalColors];
+        }
     }
 
     // Draw scaled sand image
@@ -242,7 +283,11 @@ void GameCanvas::paintEvent(QPaintEvent*) {
     if (active && !m_engine.isGameOver()) {
         int ghostY = active->getGhostY(grid);
         if (ghostY != active->getY()) {
-            QColor ghostCol = m_palette.colors[active->getColorIdx() % numPalColors];
+            QColor ghostCol;
+            if (active->isWater()) ghostCol = getWaterColor();
+            else if (active->isAcid()) ghostCol = getAcidColor();
+            else ghostCol = m_palette.colors[active->getColorIdx() % numPalColors];
+
             ghostCol.setAlpha(65);
             painter.setPen(Qt::NoPen);
             painter.setBrush(ghostCol);
@@ -265,7 +310,11 @@ void GameCanvas::paintEvent(QPaintEvent*) {
 
     // 5. Active Falling Tetromino
     if (active && !m_engine.isGameOver()) {
-        QColor activeCol = m_palette.colors[active->getColorIdx() % numPalColors];
+        QColor activeCol;
+        if (active->isWater()) activeCol = getWaterColor();
+        else if (active->isAcid()) activeCol = getAcidColor();
+        else activeCol = m_palette.colors[active->getColorIdx() % numPalColors];
+
         painter.setPen(Qt::NoPen);
         painter.setBrush(activeCol);
 

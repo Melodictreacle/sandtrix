@@ -95,10 +95,23 @@ void PiecePreviewWidget::paintEvent(QPaintEvent*) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
-    // Draw Title
-    painter.setFont(QFont("Segoe UI", 9, QFont::Bold));
-    painter.setPen(QColor("#7d8597"));
-    painter.drawText(0, 14, m_title.toUpper());
+    // Determine Title and Header Color
+    QString displayTitle = m_title.toUpper();
+    QColor titleCol("#7d8597");
+
+    if (m_cachedPiece) {
+        if (m_cachedPiece->isWater()) {
+            displayTitle = "🌊 WATER";
+            titleCol = QColor("#00E6FF");
+        } else if (m_cachedPiece->isAcid()) {
+            displayTitle = "☣ ACID";
+            titleCol = QColor("#39FF14");
+        }
+    }
+
+    painter.setFont(QFont("Segoe UI", 8, QFont::Bold));
+    painter.setPen(titleCol);
+    painter.drawText(0, 14, displayTitle);
 
     // Draw Background Box
     int boxY = 20;
@@ -109,8 +122,15 @@ void PiecePreviewWidget::paintEvent(QPaintEvent*) {
     if (!m_cachedPiece) return;
 
     // Render Tetromino grains
-    int colIdx = m_cachedPiece->getColorIdx();
-    QColor grainColor = m_palette.colors[colIdx % m_palette.colors.size()];
+    QColor grainColor;
+    if (m_cachedPiece->isWater()) {
+        grainColor = getWaterColor();
+    } else if (m_cachedPiece->isAcid()) {
+        grainColor = getAcidColor();
+    } else {
+        int colIdx = m_cachedPiece->getColorIdx();
+        grainColor = m_palette.colors[colIdx % m_palette.colors.size()];
+    }
 
     int rows = m_cachedPiece->getMaskHeight();
     int cols = m_cachedPiece->getMaskWidth();

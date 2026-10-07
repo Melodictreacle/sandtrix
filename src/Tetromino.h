@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <cstdint>
+#include <QString>
 #include "Config.h"
 
 struct GrainCoord {
@@ -22,6 +23,10 @@ public:
     char getShape() const { return m_shape; }
     uint8_t getColorIdx() const { return m_colorIdx; }
     int getRotation() const { return m_rotation; }
+
+    bool isWater() const { return m_colorIdx == MATERIAL_WATER; }
+    bool isAcid() const { return m_colorIdx == MATERIAL_ACID; }
+    QString getElementName() const;
 
     int getMaskWidth() const { return m_maskWidth; }
     int getMaskHeight() const { return m_maskHeight; }
@@ -57,7 +62,9 @@ public:
 
 private:
     void refillBag();
+    uint8_t pickColor(size_t sequenceIndex);
 
     int m_numColors;
     std::vector<char> m_bag;
+    int m_piecesSpawned;
 };

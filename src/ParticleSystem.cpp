@@ -98,6 +98,47 @@ void ParticleManager::addClearedSandSparks(const std::vector<std::pair<int, int>
     }
 }
 
+void ParticleManager::addWaterSplash(float pixelX, float pixelY, int count) {
+    QColor waterBase(0, 190, 255);
+    for (int i = 0; i < count; ++i) {
+        SparkParticle p;
+        p.x = pixelX + randomFloat(-15.0f, 15.0f);
+        p.y = pixelY + randomFloat(-4.0f, 4.0f);
+        float speed = randomFloat(2.0f, 5.5f);
+        p.vx = speed * randomFloat(-1.2f, 1.2f);
+        p.vy = -std::abs(speed) * randomFloat(0.8f, 1.6f);
+        p.gravity = 0.18f;
+        p.friction = 0.97f;
+        p.color = (randomFloat(0.0f, 1.0f) < 0.3f) ? QColor(200, 240, 255) : waterBase;
+        p.maxLife = static_cast<int>(randomFloat(20, 38));
+        p.life = p.maxLife;
+        p.alpha = 240.0f;
+        p.size = randomFloat(2.5f, 4.0f);
+        p.isBright = true;
+        m_particles.push_back(p);
+    }
+}
+
+void ParticleManager::addAcidBubbles(const std::vector<std::pair<int, int>>& coords) {
+    QColor acidCol(57, 255, 20);
+    for (const auto& pt : coords) {
+        SparkParticle p;
+        p.x = pt.second * CELL_DISPLAY_SIZE + randomFloat(-3.0f, 3.0f);
+        p.y = pt.first * CELL_DISPLAY_SIZE + randomFloat(-3.0f, 3.0f);
+        p.vx = randomFloat(-0.8f, 0.8f);
+        p.vy = randomFloat(-2.0f, -0.5f); // bubbles rise
+        p.gravity = -0.05f;               // reverse gravity (floats upward!)
+        p.friction = 0.95f;
+        p.color = acidCol;
+        p.maxLife = 25;
+        p.life = 25;
+        p.alpha = 255.0f;
+        p.size = randomFloat(2.0f, 3.5f);
+        p.isBright = true;
+        m_particles.push_back(p);
+    }
+}
+
 void ParticleManager::addLandingDust(float pixelX, float pixelY, const QColor& color, int count) {
     for (int i = 0; i < count; ++i) {
         SparkParticle p;
@@ -135,7 +176,6 @@ void ParticleManager::triggerShake(float intensity) {
 }
 
 std::pair<float, float> ParticleManager::update() {
-    // Update and prune particles
     m_particles.erase(
         std::remove_if(m_particles.begin(), m_particles.end(), [](SparkParticle& p) {
             return !p.update();
@@ -143,7 +183,6 @@ std::pair<float, float> ParticleManager::update() {
         m_particles.end()
     );
 
-    // Update and prune floating texts
     m_floatingTexts.erase(
         std::remove_if(m_floatingTexts.begin(), m_floatingTexts.end(), [](FloatingText& t) {
             return !t.update();

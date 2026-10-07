@@ -85,6 +85,12 @@ Tetromino::Tetromino(char shape, uint8_t colorIdx)
     updateGrainMask();
 }
 
+QString Tetromino::getElementName() const {
+    if (isWater()) return "WATER";
+    if (isAcid()) return "ACID";
+    return "";
+}
+
 void Tetromino::updateGrainMask() {
     auto minoM = getMinoMatrix(m_shape, m_rotation);
     int mRows = static_cast<int>(minoM.size());
@@ -114,8 +120,6 @@ bool Tetromino::collides(const std::vector<uint8_t>& grid, int offsetX, int offs
     auto minoM = getMinoMatrix(m_shape, testRot);
     int mRows = static_cast<int>(minoM.size());
     int mCols = static_cast<int>(minoM[0].size());
-    int maskH = mRows * MINO_SIZE;
-    int maskW = mCols * MINO_SIZE;
 
     int targetX = m_x + offsetX;
     int targetY = m_y + offsetY;
@@ -134,7 +138,7 @@ bool Tetromino::collides(const std::vector<uint8_t>& grid, int offsetX, int offs
                         return true;
                     }
 
-                    // Existing sand
+                    // Existing sand or water/acid
                     if (absY >= 0) {
                         if (grid[absY * BOARD_WIDTH + absX] > 0) {
                             return true;
@@ -193,7 +197,7 @@ std::vector<GrainCoord> Tetromino::getOccupiedGrains() const {
 // ------------------- BagRandomizer -------------------
 
 BagRandomizer::BagRandomizer(int numColors)
-    : m_numColors(numColors)
+    : m_numColors(numColors), m_piecesSpawned(0)
 {
     refillBag();
 }
@@ -205,6 +209,24 @@ void BagRandomizer::refillBag() {
     std::shuffle(m_bag.begin(), m_bag.end(), g);
 }
 
+uint8_t BagRandomizer::pickColor(size_t sequenceIndex) {
+    static std::random_device rd;
+    static std::mt19937 rng(rd());
+
+    // Periodically spawn elemental pieces (Water ~15%, Acid ~7%)
+    std::uniform_real_distribution<float> chanceDist(0.0f, 1.0f);
+    float roll = chanceDist(rng);
+
+    if (roll < 0.15f) {
+        return MATERIAL_WATER; // 🌊 Water block!
+    } else if (roll < 0.22f) {
+        return MATERIAL_ACID;  // ☣ Acid block!
+    }
+
+    std::uniform_int_distribution<int> dist(1, m_numColors);
+    return static_cast<uint8_t>(dist(rng));
+}
+
 std::unique_ptr<Tetromino> BagRandomizer::nextPiece() {
     if (m_bag.empty()) {
         refillBag();
@@ -212,10 +234,8 @@ std::unique_ptr<Tetromino> BagRandomizer::nextPiece() {
     char shape = m_bag.back();
     m_bag.pop_back();
 
-    static std::random_device rd;
-    static std::mt19937 rng(rd());
-    std::uniform_int_distribution<int> dist(1, m_numColors);
-    uint8_t col = static_cast<uint8_t>(dist(rng));
+    m_piecesSpawned++;
+    uint8_t col = pickColor(m_piecesSpawned);
 
     return std::make_unique<Tetromino>(shape, col);
 }
@@ -223,6 +243,8 @@ std::unique_ptr<Tetromino> BagRandomizer::nextPiece() {
 std::vector<std::unique_ptr<Tetromino>> BagRandomizer::peekNext(int count) {
     std::vector<std::unique_ptr<Tetromino>> previews;
     auto tempBag = m_bag;
+    int simCount = m_piecesSpawned;
+
     while (static_cast<int>(previews.size()) < count) {
         if (tempBag.empty()) {
             tempBag = {'I', 'O', 'T', 'S', 'Z', 'J', 'L'};
@@ -233,7 +255,12 @@ std::vector<std::unique_ptr<Tetromino>> BagRandomizer::peekNext(int count) {
         char shape = tempBag.back();
         tempBag.pop_back();
 
-        uint8_t col = static_cast<uint8_t>((std::hash<char>{}(shape) + previews.size()) % m_numColors + 1);
+        simCount++;
+        // Use deterministic hash for preview to match
+        uint8_t col = static_cast<uint8_t>((std::hash<char>{}(shape) + simCount) % m_numColors + 1);
+        if (simCount % 7 == 0) col = MATERIAL_WATER;
+        else if (simCount % 13 == 0) col = MATERIAL_ACID;
+
         previews.push_back(std::make_unique<Tetromino>(shape, col));
     }
     return previews;

@@ -56,4 +56,5 @@ private:
     double m_pulseTime;
     bool m_gameOverSoundPlayed;
     int m_confusionTimer; // Ms remaining for inverted controls in Mystery mode
+    int m_dangerRoastTimer; // Ms timer between near-ceiling roasts
 };

@@ -64,8 +64,8 @@ public:
     const std::vector<std::unique_ptr<Tetromino>>& getNextQueue() const { return m_nextQueue; }
     int getActiveGhostY() const;
 
-    bool isClassicTetris() const { return m_gameMode == GameMode::ClassicTetris; }
-    bool isMystery() const { return m_gameMode == GameMode::Mystery; }
+    bool isClassicTetris() const { return m_gameMode == GameMode::ClassicTetris || m_gameMode == GameMode::MysteryClassic; }
+    bool isMystery() const { return m_gameMode == GameMode::Mystery || m_gameMode == GameMode::MysteryClassic; }
     GameMode getGameMode() const { return m_gameMode; }
 
     int getScore() const { return m_score; }

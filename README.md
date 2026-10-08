@@ -9,7 +9,7 @@ This project re-imagines classic Tetris by simulating granular cellular automata
 ## Table of Contents
 
 - [Core Gameplay Mechanics](#core-gameplay-mechanics)
-- [Game Modes: Sandtrix vs. Classic Tetris vs. Mystery Mode](#game-modes-sandtrix-vs-classic-tetris-vs-mystery-mode)
+- [Game Modes: Sandtrix vs. Classic Tetris vs. Mystery vs. Troll Classic Tetris](#game-modes-sandtrix-vs-classic-tetris-vs-mystery-vs-troll-classic-tetris)
 - [Mathematical & Algorithmic Implementation Details](#mathematical--algorithmic-implementation-details)
   - [1. Two-Tier Coordinate & Grid System](#1-two-tier-coordinate--grid-system)
   - [2. Mino-to-Wall Grid Alignment Solution](#2-mino-to-wall-grid-alignment-solution)
@@ -50,9 +50,9 @@ This project re-imagines classic Tetris by simulating granular cellular automata
 
 ---
 
-## Game Modes: Sandtrix vs. Classic Tetris vs. Mystery Mode
-
-Sandtrix supports three game modes, toggleable directly from the **Main Menu** or inside **Settings**:
+## Game Modes: Sandtrix vs. Classic Tetris vs. Mystery vs. Troll Classic Tetris
+ 
+Sandtrix supports four distinct game modes, toggleable directly from the **Main Menu** or inside **Settings**:
 
 ### 1. Sandtrix (Sand Physics Mode) - *Default*
 - **Granular Dissolution**: Rigid tetrominoes dissolve into loose sand grains on impact.
@@ -71,11 +71,25 @@ Sandtrix supports three game modes, toggleable directly from the **Main Menu** o
   - 4 Lines: **TETRIS!** ($800 \times \text{level}$)
 - **Traditional Mechanics**: SRS wall-kicks, ghost piece tracking, hard drop, soft drop, hold queue, and progressive gravity drops.
 
-### 3. Mystery Mode (Shape-Shifting & Chaos)
+### 3. Mystery Sandtrix (Shape-Shifting & Sand Chaos)
 - **Mid-Air Shape-Shifting**: Falling pieces spontaneously mutate mid-flight into different tetrominoes, tiny 1-mino dots, or 5-block plus crosses!
 - **TNT Bomb Blocks**: Rare flashing explosive blocks that blast an impact crater through resting sand heaps on impact.
 - **Wacky Calamities**: Seismic earthquakes that shift dunes, sudden gusts of wind pushing falling pieces, and temporary inverted controls!
-- **Funny Commentary**: Playful floating text roasts and hype callouts on combos, close calls, and hard drops.
+- **Funny Commentary**: Playful floating text hype callouts on combos, close calls, and hard drops.
+
+### 4. Troll Classic Tetris (Grid Chaos & Sarcastic Roasts)
+- **Rigid Tetris with Hijacked Chaos**: Authentic 10×17 mino grid gameplay combined with mid-air piece mutations and calamity events!
+- **Mid-Air Morphing**: Falling classic pieces unexpectedly transform into other shapes, single-dot fillers, or awkward plus crosses mid-descent.
+- **TNT Demolition**: Bomb pieces blast 3×3 mino craters directly out of your stacked block tower.
+- **Grid-Aligned Calamities**: Wind gusts push pieces 1 full mino column off-target; seismic rumbles shake the screen; inverted controls reverse left and right inputs!
+- **Sarcastic Troll Commentary**: The game actively roasts your plays in real time:
+  - Single Clears: *"ONLY ONE?"*, *"BARE MINIMUM!"*, *"IS THAT ALL?"*, *"WEAK PLAY!"*
+  - Double Clears: *"MEDIOCRE!"*, *"STILL NOT A TETRIS."*, *"BABY STEPS!"*
+  - Triple Clears: *"CHOKED ON THE 4TH!"*, *"SO CLOSE YET SO FAR!"*
+  - Tetris Clears: *"TOTAL ACCIDENT, RIGHT?"*, *"CALCULATED LUCK!"*, *"WAIT, THAT WORKED?!"*
+  - Danger Ceiling: *"SWEATING YET?"*, *"LIVING ON THE EDGE!"*, *"DON'T CHOKE NOW!"*
+  - Hard Drops: *"SLAMMED!"*, *"FULL SEND!"*, *"ZERO REGRETS!"*
+  - Game Over: *"SKILL ISSUE DETECTED"*, *"REST IN PIECES"*, *"F IN THE CHAT"*, *"PERHAPS TETRIS ISN'T FOR YOU"*
 
 ---
 

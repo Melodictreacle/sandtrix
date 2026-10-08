@@ -72,7 +72,8 @@ inline const std::vector<ColorPalette>& getAvailablePalettes() {
 enum class GameMode {
     Sandtrix = 0,       // Sandtrix: Falling sand cellular automata, edge-to-edge flood-fill clears
     ClassicTetris = 1,  // Classic Tetris: Solid rigid minos, traditional horizontal row clears
-    Mystery = 2         // Mystery Mode: Mid-air shape-shifting, TNT bombs, and wacky chaos events
+    Mystery = 2,        // Mystery Sandtrix: Mid-air shape-shifting, TNT bombs, and wacky chaos events
+    MysteryClassic = 3  // Troll Classic Tetris: Solid rigid grid + mid-air morphs, bombs, wildcards & sarcastic roasts!
 };
 
 // Game Settings chosen before game start

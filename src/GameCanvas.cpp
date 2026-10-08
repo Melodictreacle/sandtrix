@@ -17,7 +17,8 @@ GameCanvas::GameCanvas(AudioManager* audio, const ColorPalette& initialPalette, 
       m_activeDir(0),
       m_pulseTime(0.0),
       m_gameOverSoundPlayed(false),
-      m_confusionTimer(0)
+      m_confusionTimer(0),
+      m_dangerRoastTimer(0)
 {
     setFixedSize(CANVAS_WIDTH, CANVAS_HEIGHT);
     setFocusPolicy(Qt::StrongFocus);
@@ -42,6 +43,7 @@ void GameCanvas::applySettings(const GameSettings& settings) {
     m_particles.clear();
     m_gameOverSoundPlayed = false;
     m_confusionTimer = 0;
+    m_dangerRoastTimer = 0;
     update();
     emit stateChanged();
 }
@@ -51,6 +53,7 @@ void GameCanvas::restartGame() {
     m_particles.clear();
     m_gameOverSoundPlayed = false;
     m_confusionTimer = 0;
+    m_dangerRoastTimer = 0;
     update();
     emit stateChanged();
 }
@@ -83,7 +86,11 @@ void GameCanvas::onGameLoop() {
 
     if (event.confusionTriggered) {
         m_confusionTimer = 6000;
-        m_particles.addFloatingText(CANVAS_WIDTH / 2.0f - 85.0f, 160.0f, "CONTROLS INVERTED!", QColor(255, 80, 80), 16);
+        static const char* confMsgs[] = {
+            "CONTROLS INVERTED!", "RIGHT IS LEFT, LEFT IS RIGHT!", "BRAIN SCRAMBLE!", "CONFUSION 100!"
+        };
+        static int cIdx = 0;
+        m_particles.addFloatingText(CANVAS_WIDTH / 2.0f - 85.0f, 160.0f, confMsgs[cIdx++ % 4], QColor(255, 80, 80), 16);
         m_particles.triggerShake(5.0f);
     }
 
@@ -92,7 +99,11 @@ void GameCanvas::onGameLoop() {
         Tetromino* active = m_engine.getActivePiece();
         int px = active ? (active->getX() * CELL_DISPLAY_SIZE + 20) : (CANVAS_WIDTH / 2);
         int py = active ? (active->getY() * CELL_DISPLAY_SIZE + 10) : 180;
-        m_particles.addFloatingText(px - 50.0f, py - 20.0f, "SHAPE SHIFT!", QColor(255, 105, 180), 16);
+        static const char* morphRoasts[] = {
+            "SHAPE SHIFT!", "SURPRISE!", "ADAPT OR DIE!", "NO TETRIS FOR YOU!", "NICE PLAN... OOPS!", "MUTATION!"
+        };
+        static int mIdx = 0;
+        m_particles.addFloatingText(px - 50.0f, py - 20.0f, morphRoasts[mIdx++ % 6], QColor(255, 105, 180), 16);
         m_particles.triggerShake(4.0f);
     }
 
@@ -100,17 +111,30 @@ void GameCanvas::onGameLoop() {
         if (m_audio) m_audio->playBoom();
         m_particles.triggerShake(12.0f);
         m_particles.addClearedSandSparks(event.bombCraterCoords, QColor(255, 100, 30));
-        m_particles.addFloatingText(event.bombX * CELL_DISPLAY_SIZE - 45.0f, event.bombY * CELL_DISPLAY_SIZE - 15.0f, "BOOM! -CRATER", QColor(255, 75, 40), 18);
+        static const char* bombRoasts[] = {
+            "BOOM! -CRATER", "THERE GOES YOUR SETUP!", "DEMOLITION TIME!", "HOPE THAT WASN'T IMPORTANT!"
+        };
+        static int bIdx = 0;
+        m_particles.addFloatingText(event.bombX * CELL_DISPLAY_SIZE - 55.0f, event.bombY * CELL_DISPLAY_SIZE - 15.0f, bombRoasts[bIdx++ % 4], QColor(255, 75, 40), 17);
     }
 
     if (event.earthquake) {
         if (m_audio) m_audio->playDrop();
         m_particles.triggerShake(9.0f);
-        m_particles.addFloatingText(CANVAS_WIDTH / 2.0f - 55.0f, 150.0f, "EARTHQUAKE!", QColor(245, 185, 35), 18);
+        static const char* quakes[] = {
+            "EARTHQUAKE!", "HOLD ONTO YOUR SEATS!", "SEISMIC ACTIVITY!", "TREMOR DETECTED!"
+        };
+        static int qIdx = 0;
+        m_particles.addFloatingText(CANVAS_WIDTH / 2.0f - 75.0f, 150.0f, quakes[qIdx++ % 4], QColor(245, 185, 35), 18);
     }
 
     if (event.windGust) {
-        m_particles.addFloatingText(CANVAS_WIDTH / 2.0f - 50.0f, 140.0f, (event.windDir > 0) ? "GUST! >>>" : "<<< GUST!", QColor(0, 210, 215), 15);
+        static const char* windRoasts[] = {
+            "GUST!", "OOPS, SLIPPED!", "WIND BLOWS!", "WILD GUST APPEARS!"
+        };
+        static int wIdx = 0;
+        QString wStr = QString("%1 %2 %3").arg((event.windDir > 0) ? ">>>" : "<<<").arg(windRoasts[wIdx++ % 4]).arg((event.windDir > 0) ? ">>>" : "<<<");
+        m_particles.addFloatingText(CANVAS_WIDTH / 2.0f - 60.0f, 140.0f, wStr, QColor(0, 210, 215), 15);
     }
 
     if (event.landedWater) {
@@ -144,6 +168,36 @@ void GameCanvas::onGameLoop() {
                 CANVAS_WIDTH / 2.0f - 55.0f, static_cast<float>(midY),
                 title, flashCol, (l == 4) ? 18 : 15
             );
+
+            if (m_engine.isMystery()) {
+                static const char* singleRoasts[] = {
+                    "ONLY ONE?", "BARE MINIMUM!", "IS THAT ALL?", "WEAK PLAY!", "1 LINE... HOW CUTE.", "NOT IMPRESSED."
+                };
+                static const char* doubleRoasts[] = {
+                    "MEDIOCRE!", "STILL NOT A TETRIS.", "MEH, COULD BE BETTER.", "BABY STEPS!", "TWO LINES? YAWN."
+                };
+                static const char* tripleRoasts[] = {
+                    "CHOKED ON THE 4TH!", "SO CLOSE YET SO FAR!", "ALMOST A TETRIS... BUT NOT.", "GREEDY MUCH?"
+                };
+                static const char* tetrisPraises[] = {
+                    "TOTAL ACCIDENT, RIGHT?", "CALCULATED LUCK!", "WAIT, THAT WORKED?!", "BIG BRAIN TIME!", "DON'T GET COCKY NOW!"
+                };
+
+                static int roastIdx = 0;
+                const char* roast = nullptr;
+                if (l == 1) roast = singleRoasts[(roastIdx++) % 6];
+                else if (l == 2) roast = doubleRoasts[(roastIdx++) % 5];
+                else if (l == 3) roast = tripleRoasts[(roastIdx++) % 4];
+                else if (l == 4) roast = tetrisPraises[(roastIdx++) % 5];
+
+                if (roast) {
+                    m_particles.addFloatingText(
+                        CANVAS_WIDTH / 2.0f - 75.0f, static_cast<float>(midY + 24),
+                        roast, (l == 4) ? QColor(255, 215, 0) : QColor(255, 120, 120), 13
+                    );
+                }
+            }
+
             m_particles.addClearedSandSparks(event.coords, flashCol);
             m_particles.triggerShake(3.0f + l * 2.0f);
             if (m_audio) m_audio->playClear(l);
@@ -197,6 +251,42 @@ void GameCanvas::onGameLoop() {
 
             m_particles.triggerShake(3.0f + std::min(10.0f, event.combo * 2.0f));
             if (m_audio) m_audio->playClear(event.combo);
+        }
+    }
+
+    // Check near-ceiling danger warning roast in Troll / Mystery mode
+    if (m_engine.isMystery() && !m_engine.isGameOver() && !m_engine.isPaused()) {
+        m_dangerRoastTimer += dt;
+        if (m_dangerRoastTimer >= 5500) {
+            m_dangerRoastTimer = 0;
+            const auto& grid = m_engine.getGrid();
+            int ceilingCheckLimit = m_engine.isClassicTetris() ? (4 + 4 * MINO_SIZE) : 32;
+            bool nearCeiling = false;
+            for (int r = 0; r < ceilingCheckLimit; ++r) {
+                for (int c = 0; c < BOARD_WIDTH; ++c) {
+                    if (grid[r * BOARD_WIDTH + c] > 0) {
+                        nearCeiling = true;
+                        break;
+                    }
+                }
+                if (nearCeiling) break;
+            }
+
+            if (nearCeiling) {
+                static const char* dangerRoasts[] = {
+                    "SWEATING YET?",
+                    "LIVING ON THE EDGE!",
+                    "DON'T CHOKE NOW!",
+                    "CHOKING HAZARD DETECTED!",
+                    "PANIC STACKING INTENSIFIES!"
+                };
+                static int drIdx = 0;
+                m_particles.addFloatingText(
+                    CANVAS_WIDTH / 2.0f - 75.0f, 95.0f,
+                    dangerRoasts[drIdx++ % 5], QColor(255, 140, 50), 15
+                );
+                m_particles.triggerShake(3.0f);
+            }
         }
     }
 
@@ -285,7 +375,9 @@ void GameCanvas::keyPressEvent(QKeyEvent* event) {
             } else if (wasAcid) {
                 if (m_audio) m_audio->playAcidSizzle();
             } else if (wasBomb) {
-                // Bomb detonation already triggered inside lockActivePiece
+                if (m_audio) m_audio->playBoom();
+                m_particles.triggerShake(12.0f);
+                m_particles.addFloatingText(lx * CELL_DISPLAY_SIZE - 20, ly * CELL_DISPLAY_SIZE - 25, "KABOOM!", QColor(255, 75, 40), 18);
             } else {
                 if (m_audio) m_audio->playDrop();
                 if (!impactCoords.empty()) {
@@ -295,10 +387,10 @@ void GameCanvas::keyPressEvent(QKeyEvent* event) {
             }
             m_particles.triggerShake(4.0f);
 
-            if (m_engine.isMystery()) {
-                static const char* dropQuotes[] = { "SLAM DUNK!", "FULL SEND!", "SEND IT!", "NO FEAR!" };
+            if (m_engine.isMystery() && !wasBomb) {
+                static const char* dropQuotes[] = { "SLAMMED!", "FULL SEND!", "SEND IT!", "ZERO REGRETS!", "NO FEAR!" };
                 static int qIdx = 0;
-                m_particles.addFloatingText(lx * CELL_DISPLAY_SIZE - 20, ly * CELL_DISPLAY_SIZE - 25, dropQuotes[qIdx++ % 4], QColor(255, 180, 50), 14);
+                m_particles.addFloatingText(lx * CELL_DISPLAY_SIZE - 20, ly * CELL_DISPLAY_SIZE - 25, dropQuotes[qIdx++ % 5], QColor(255, 180, 50), 14);
             }
         }
     } else if (key == Qt::Key_C || key == Qt::Key_Shift) {
@@ -507,11 +599,25 @@ void GameCanvas::drawGameOverOverlay(QPainter& painter) {
         QString("High Score: %L1").arg(m_engine.getHighScore())
     );
 
+    if (m_engine.isMystery()) {
+        static const char* gameOverRoasts[] = {
+            "SKILL ISSUE DETECTED",
+            "REST IN PIECES",
+            "F IN THE CHAT",
+            "PERHAPS TETRIS ISN'T FOR YOU",
+            "NICE TRY, BETTER LUCK NEXT TIME"
+        };
+        int rIdx = (m_engine.getScore() / 250) % 5;
+        painter.setFont(QFont("Segoe UI", 11, QFont::Bold));
+        painter.setPen(QColor("#fc8181"));
+        painter.drawText(QRect(0, centerY + 112, CANVAS_WIDTH, 20), Qt::AlignCenter, gameOverRoasts[rIdx]);
+    }
+
     int restartAlpha = static_cast<int>(170 + 75 * std::sin(m_pulseTime * 4.0));
     painter.setFont(QFont("Segoe UI", 12, QFont::Bold));
     painter.setPen(QColor(124, 183, 234, restartAlpha));
     painter.drawText(
-        QRect(0, centerY + 130, CANVAS_WIDTH, 30),
+        QRect(0, centerY + 138, CANVAS_WIDTH, 30),
         Qt::AlignCenter,
         "Press [R] to Play Again"
     );

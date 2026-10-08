@@ -350,7 +350,9 @@ void MainWindow::onStartGame() {
     // Update locked info badges
     QString modeName;
     if (m_settings.gameMode == GameMode::Mystery) {
-        modeName = "Mystery Mode";
+        modeName = "Mystery Sandtrix";
+    } else if (m_settings.gameMode == GameMode::MysteryClassic) {
+        modeName = "Troll Classic Tetris";
     } else if (m_settings.gameMode == GameMode::ClassicTetris) {
         modeName = "Classic Tetris";
     } else {
@@ -384,6 +386,9 @@ void MainWindow::onToggleMode() {
         }
     } else if (m_settings.gameMode == GameMode::ClassicTetris) {
         m_settings.gameMode = GameMode::Mystery;
+        m_settings.enableElements = false;
+    } else if (m_settings.gameMode == GameMode::Mystery) {
+        m_settings.gameMode = GameMode::MysteryClassic;
         m_settings.enableElements = false;
     } else {
         m_settings.gameMode = GameMode::Sandtrix;

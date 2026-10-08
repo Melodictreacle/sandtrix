@@ -64,6 +64,7 @@ private:
     QRadioButton* m_rbSandtrix;
     QRadioButton* m_rbClassicTetris;
     QRadioButton* m_rbMystery;
+    QRadioButton* m_rbMysteryClassic;
     QCheckBox* m_chkElements;
 
     // Display & Audio

@@ -42,7 +42,7 @@ SandEngine::SandEngine(int numColors, bool enableElements, int startLevel, GameM
       m_combo(0),
       m_gameOver(false),
       m_paused(false),
-      m_randomizer(numColors, enableElements && (mode == GameMode::Sandtrix), mode == GameMode::Mystery),
+      m_randomizer(numColors, enableElements && (mode == GameMode::Sandtrix), mode == GameMode::Mystery || mode == GameMode::MysteryClassic),
       m_canHold(true),
       m_gravityTimer(0),
       m_lockTimer(0),
@@ -95,7 +95,7 @@ void SandEngine::applySettings(const GameSettings& settings, int numColors) {
 
 int SandEngine::getActiveGhostY() const {
     if (!m_activePiece) return 0;
-    int step = (m_gameMode == GameMode::ClassicTetris) ? MINO_SIZE : 1;
+    int step = isClassicTetris() ? MINO_SIZE : 1;
     return m_activePiece->getGhostY(m_grid, step);
 }
 
@@ -120,7 +120,7 @@ void SandEngine::reset() {
     m_pieceEligibleForShift = false;
     m_mysteryCalamityTimer = 0;
 
-    m_randomizer = BagRandomizer(m_numColors, m_enableElements && (m_gameMode == GameMode::Sandtrix), m_gameMode == GameMode::Mystery);
+    m_randomizer = BagRandomizer(m_numColors, m_enableElements && (m_gameMode == GameMode::Sandtrix), isMystery());
     m_nextQueue.clear();
     refillNextQueue();
     spawnPiece();
@@ -140,18 +140,23 @@ bool SandEngine::spawnPiece() {
     m_gravityTimer = 0;
 
     m_pieceHasShifted = false;
-    if (m_gameMode == GameMode::Mystery) {
+    if (isMystery()) {
         static std::random_device rd;
         static std::mt19937 rng(rd());
         std::uniform_real_distribution<float> chanceDist(0.0f, 1.0f);
         m_pieceEligibleForShift = (chanceDist(rng) < 0.55f);
-        std::uniform_int_distribution<int> yDist(28, 62);
-        m_pieceShiftTriggerY = yDist(rng);
+        if (isClassicTetris()) {
+            std::uniform_int_distribution<int> rowDist(3, 7);
+            m_pieceShiftTriggerY = 4 + rowDist(rng) * MINO_SIZE;
+        } else {
+            std::uniform_int_distribution<int> yDist(28, 62);
+            m_pieceShiftTriggerY = yDist(rng);
+        }
     } else {
         m_pieceEligibleForShift = false;
     }
 
-    int startY = (m_gameMode == GameMode::ClassicTetris) ? 4 : 0;
+    int startY = isClassicTetris() ? 4 : 0;
     m_activePiece->setY(startY);
 
     if (m_activePiece->collides(m_grid)) {
@@ -167,6 +172,31 @@ bool SandEngine::spawnPiece() {
 
 bool SandEngine::detonateBombAt(int cx, int cy, int radius, std::vector<std::pair<int, int>>& outCrater) {
     outCrater.clear();
+    if (isClassicTetris()) {
+        int centerMinoX = cx / MINO_SIZE;
+        int centerMinoY = (cy - 4) / MINO_SIZE;
+        for (int dmy = -1; dmy <= 1; ++dmy) {
+            for (int dmx = -1; dmx <= 1; ++dmx) {
+                int mx = centerMinoX + dmx;
+                int my = centerMinoY + dmy;
+                if (mx >= 0 && mx < 10 && my >= 0 && my < 17) {
+                    int startX = mx * MINO_SIZE;
+                    int startY = 4 + my * MINO_SIZE;
+                    for (int gy = 0; gy < MINO_SIZE; ++gy) {
+                        for (int gx = 0; gx < MINO_SIZE; ++gx) {
+                            int idx = (startY + gy) * BOARD_WIDTH + (startX + gx);
+                            if (m_grid[idx] > 0) {
+                                outCrater.push_back({startY + gy, startX + gx});
+                                m_grid[idx] = 0;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return !outCrater.empty();
+    }
+
     int r2 = radius * radius;
     for (int dy = -radius; dy <= radius; ++dy) {
         for (int dx = -radius; dx <= radius; ++dx) {
@@ -212,7 +242,7 @@ bool SandEngine::holdCurrentPiece() {
 
     char shape = m_activePiece->getShape();
     uint8_t col = m_activePiece->getColorIdx();
-    int startY = (m_gameMode == GameMode::ClassicTetris) ? 4 : 0;
+    int startY = isClassicTetris() ? 4 : 0;
 
     if (!m_holdPiece) {
         m_holdPiece = std::make_unique<Tetromino>(shape, col);
@@ -262,7 +292,7 @@ bool SandEngine::hardDrop(int& outX, int& outY, std::vector<std::pair<int, int>>
     }
 
     // In Mystery mode, hard drop has a 30% chance to cause an earthquake tremor!
-    if (m_gameMode == GameMode::Mystery) {
+    if (isMystery() && !isClassicTetris()) {
         static std::random_device rd;
         static std::mt19937 rng(rd());
         std::uniform_real_distribution<float> dropTremor(0.0f, 1.0f);
@@ -315,10 +345,10 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
     m_activePiece.reset();
     m_canHold = true;
     m_lockTimer = 0;
-    m_isSandMoving = (m_gameMode != GameMode::ClassicTetris);
+    m_isSandMoving = !isClassicTetris();
 
     // Check danger ceiling breach
-    int dangerLimit = (m_gameMode == GameMode::ClassicTetris) ? (4 + MINO_SIZE) : DANGER_ROW;
+    int dangerLimit = isClassicTetris() ? (4 + MINO_SIZE) : DANGER_ROW;
     for (int r = 0; r < dangerLimit; ++r) {
         for (int c = 0; c < BOARD_WIDTH; ++c) {
             if (m_grid[r * BOARD_WIDTH + c] > 0) {
@@ -626,9 +656,63 @@ EngineTickEvent SandEngine::tick(int dtMs) {
     EngineTickEvent event;
     if (m_gameOver || m_paused) return event;
 
-    if (m_gameMode == GameMode::ClassicTetris) {
+    event.isClassicTetris = isClassicTetris();
+    event.isMystery = isMystery();
+
+    if (isMystery()) {
+        // A. Mid-Air Shape Shifting!
+        if (m_activePiece && m_pieceEligibleForShift && !m_pieceHasShifted) {
+            if (m_activePiece->getY() >= m_pieceShiftTriggerY) {
+                static std::random_device rd;
+                static std::mt19937 rng(rd());
+                static const std::vector<char> possibleShapes = {'I', 'O', 'T', 'S', 'Z', 'J', 'L', 'D', '+'};
+                char curShape = m_activePiece->getShape();
+                std::vector<char> choices;
+                for (char s : possibleShapes) {
+                    if (s != curShape) choices.push_back(s);
+                }
+                std::uniform_int_distribution<size_t> d(0, choices.size() - 1);
+                char targetShape = choices[d(rng)];
+
+                if (m_activePiece->morphTo(targetShape, m_grid)) {
+                    m_pieceHasShifted = true;
+                    event.shapeShifted = true;
+                    event.newShape = targetShape;
+                }
+            }
+        }
+
+        // B. Calamity Events Timer (Earthquake, Wind Gust, Control Confusion)
+        m_mysteryCalamityTimer += dtMs;
+        if (m_mysteryCalamityTimer >= 16000) {
+            m_mysteryCalamityTimer = 0;
+            static std::random_device rd;
+            static std::mt19937 rng(rd());
+            std::uniform_int_distribution<int> cRoll(0, 2);
+            int roll = cRoll(rng);
+
+            if (roll == 0) {
+                if (!isClassicTetris()) {
+                    triggerEarthquake();
+                }
+                event.earthquake = true;
+            } else if (roll == 1) {
+                if (m_activePiece) {
+                    std::uniform_int_distribution<int> dirRoll(0, 1);
+                    int dir = (dirRoll(rng) == 0) ? -1 : 1;
+                    if (m_activePiece->tryMove(dir * MINO_SIZE, 0, m_grid)) {
+                        event.windGust = true;
+                        event.windDir = dir;
+                    }
+                }
+            } else {
+                event.confusionTriggered = true;
+            }
+        }
+    }
+
+    if (isClassicTetris()) {
         // ==================== CLASSIC TETRIS MODE ====================
-        event.isClassicTetris = true;
         m_isSandMoving = false;
 
         // Check for complete horizontal row clears
@@ -680,58 +764,7 @@ EngineTickEvent SandEngine::tick(int dtMs) {
         return event;
     }
 
-    // ==================== SANDTRIX & MYSTERY MODE ====================
-    event.isMystery = (m_gameMode == GameMode::Mystery);
-
-    if (m_gameMode == GameMode::Mystery) {
-        // A. Mid-Air Shape Shifting!
-        if (m_activePiece && m_pieceEligibleForShift && !m_pieceHasShifted) {
-            if (m_activePiece->getY() >= m_pieceShiftTriggerY) {
-                static std::random_device rd;
-                static std::mt19937 rng(rd());
-                static const std::vector<char> possibleShapes = {'I', 'O', 'T', 'S', 'Z', 'J', 'L', 'D', '+'};
-                char curShape = m_activePiece->getShape();
-                std::vector<char> choices;
-                for (char s : possibleShapes) {
-                    if (s != curShape) choices.push_back(s);
-                }
-                std::uniform_int_distribution<size_t> d(0, choices.size() - 1);
-                char targetShape = choices[d(rng)];
-
-                if (m_activePiece->morphTo(targetShape, m_grid)) {
-                    m_pieceHasShifted = true;
-                    event.shapeShifted = true;
-                    event.newShape = targetShape;
-                }
-            }
-        }
-
-        // B. Calamity Events Timer (Earthquake, Wind Gust, Control Confusion)
-        m_mysteryCalamityTimer += dtMs;
-        if (m_mysteryCalamityTimer >= 17000) {
-            m_mysteryCalamityTimer = 0;
-            static std::random_device rd;
-            static std::mt19937 rng(rd());
-            std::uniform_int_distribution<int> cRoll(0, 2);
-            int roll = cRoll(rng);
-
-            if (roll == 0) {
-                triggerEarthquake();
-                event.earthquake = true;
-            } else if (roll == 1) {
-                if (m_activePiece) {
-                    std::uniform_int_distribution<int> dirRoll(0, 1);
-                    int dir = (dirRoll(rng) == 0) ? -1 : 1;
-                    if (m_activePiece->tryMove(dir * MINO_SIZE, 0, m_grid)) {
-                        event.windGust = true;
-                        event.windDir = dir;
-                    }
-                }
-            } else {
-                event.confusionTriggered = true;
-            }
-        }
-    }
+    // ==================== SANDTRIX MODE ====================
 
     // 1. Update sand cellular automata physics sub-steps
     bool anyMoved = false;

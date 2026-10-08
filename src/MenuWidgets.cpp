@@ -83,7 +83,7 @@ MainMenuWidget::MainMenuWidget(QWidget* parent)
     m_btnModeToggle->setToolTip("Click to cycle between Sandtrix (Elements OFF), Sandtrix (Elements ON), and Classic Tetris");
     connect(m_btnModeToggle, &QPushButton::clicked, this, &MainMenuWidget::modeToggled);
 
-    auto* btnStart = new QPushButton("▶  START GAME", this);
+    auto* btnStart = new QPushButton("START GAME", this);
     btnStart->setFixedHeight(46);
     btnStart->setStyleSheet(
         "QPushButton {"
@@ -105,7 +105,7 @@ MainMenuWidget::MainMenuWidget(QWidget* parent)
     );
     connect(btnStart, &QPushButton::clicked, this, &MainMenuWidget::startClicked);
 
-    auto* btnSettings = new QPushButton("⚙  SETTINGS", this);
+    auto* btnSettings = new QPushButton("SETTINGS", this);
     btnSettings->setFixedHeight(42);
     btnSettings->setStyleSheet(
         "QPushButton {"
@@ -127,7 +127,7 @@ MainMenuWidget::MainMenuWidget(QWidget* parent)
     );
     connect(btnSettings, &QPushButton::clicked, this, &MainMenuWidget::settingsClicked);
 
-    auto* btnHowToPlay = new QPushButton("📖  HOW TO PLAY", this);
+    auto* btnHowToPlay = new QPushButton("HOW TO PLAY", this);
     btnHowToPlay->setFixedHeight(42);
     btnHowToPlay->setStyleSheet(
         "QPushButton {"
@@ -149,7 +149,7 @@ MainMenuWidget::MainMenuWidget(QWidget* parent)
     );
     connect(btnHowToPlay, &QPushButton::clicked, this, &MainMenuWidget::howToPlayClicked);
 
-    auto* btnExit = new QPushButton("✕  EXIT GAME", this);
+    auto* btnExit = new QPushButton("EXIT GAME", this);
     btnExit->setFixedHeight(40);
     btnExit->setStyleSheet(
         "QPushButton {"
@@ -185,19 +185,19 @@ void MainMenuWidget::updateSettingsBadge(const GameSettings& settings) {
     bool isClassic = (settings.gameMode == GameMode::ClassicTetris);
     QString modeBadge;
     if (isClassic) {
-        modeBadge = "🧱 Classic Tetris";
+        modeBadge = "Classic Tetris";
     } else {
-        modeBadge = settings.enableElements ? "⏳ Sandtrix (🌊 Elements: ON)" : "⏳ Sandtrix (Elements: OFF)";
+        modeBadge = settings.enableElements ? "Sandtrix (Elements: ON)" : "Sandtrix (Elements: OFF)";
     }
-    QString sndStr = settings.soundEnabled ? "🔊 Sound ON" : "🔇 Sound OFF";
+    QString sndStr = settings.soundEnabled ? "Sound ON" : "Sound OFF";
 
-    m_lblBadge->setText(QString("⚙ Level %1  •  %2  •  %3")
+    m_lblBadge->setText(QString("Level %1  •  %2  •  %3")
         .arg(settings.startingLevel).arg(modeBadge).arg(sndStr));
 
     if (m_btnModeToggle) {
         if (!isClassic) {
             if (settings.enableElements) {
-                m_btnModeToggle->setText("⏳  MODE: SANDTRIX (🌊 ELEMENTS: ON)");
+                m_btnModeToggle->setText("MODE: SANDTRIX (ELEMENTS: ON)");
                 m_btnModeToggle->setStyleSheet(
                     "QPushButton {"
                     "  background-color: #142834;"
@@ -218,7 +218,7 @@ void MainMenuWidget::updateSettingsBadge(const GameSettings& settings) {
                     "}"
                 );
             } else {
-                m_btnModeToggle->setText("⏳  MODE: SANDTRIX (ELEMENTS: OFF)");
+                m_btnModeToggle->setText("MODE: SANDTRIX (ELEMENTS: OFF)");
                 m_btnModeToggle->setStyleSheet(
                     "QPushButton {"
                     "  background-color: #172b22;"
@@ -240,7 +240,7 @@ void MainMenuWidget::updateSettingsBadge(const GameSettings& settings) {
                 );
             }
         } else {
-            m_btnModeToggle->setText("🧱  MODE: CLASSIC TETRIS");
+            m_btnModeToggle->setText("MODE: CLASSIC TETRIS");
             m_btnModeToggle->setStyleSheet(
                 "QPushButton {"
                 "  background-color: #261f38;"
@@ -274,7 +274,7 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     mainLayout->setContentsMargins(40, 20, 40, 20);
     mainLayout->setSpacing(12);
 
-    auto* header = new QLabel("⚙ GAME SETTINGS", this);
+    auto* header = new QLabel("GAME SETTINGS", this);
     header->setStyleSheet("color: #7cb7ea; font-size: 26px; font-weight: 900; letter-spacing: 2px;");
     header->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(header);
@@ -317,7 +317,7 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     modeLayout->setSpacing(8);
 
     // Sandtrix Radio Button
-    m_rbSandtrix = new QRadioButton("⏳  Sandtrix (Sand Physics Mode)", this);
+    m_rbSandtrix = new QRadioButton("Sandtrix (Sand Physics Mode)", this);
     m_rbSandtrix->setCursor(Qt::PointingHandCursor);
     m_rbSandtrix->setStyleSheet(
         "QRadioButton {"
@@ -335,7 +335,7 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     lblSandtrixDesc->setStyleSheet("color: #94a1b2; font-size: 10px; margin-left: 24px; line-height: 1.3;");
 
     // Optional elemental pieces checkbox for Sandtrix
-    m_chkElements = new QCheckBox("Enable Elemental Pieces (🌊 Water & ☣ Acid)", this);
+    m_chkElements = new QCheckBox("Enable Elemental Pieces (Water & Acid)", this);
     m_chkElements->setCursor(Qt::PointingHandCursor);
     m_chkElements->setStyleSheet(
         "QCheckBox {"
@@ -351,7 +351,7 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     );
 
     // Classic Tetris Radio Button
-    m_rbClassicTetris = new QRadioButton("🧱  Classic Tetris (Solid Grid Mode)", this);
+    m_rbClassicTetris = new QRadioButton("Classic Tetris (Solid Grid Mode)", this);
     m_rbClassicTetris->setCursor(Qt::PointingHandCursor);
     m_rbClassicTetris->setStyleSheet(
         "QRadioButton {"
@@ -574,8 +574,8 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     auto* volRow = new QHBoxLayout();
     volRow->setSpacing(10);
 
-    m_lblSpeakerIcon = new QLabel("🔊", this);
-    m_lblSpeakerIcon->setStyleSheet("font-size: 14px; background: transparent; border: none; padding: 0px;");
+    m_lblSpeakerIcon = new QLabel("VOL", this);
+    m_lblSpeakerIcon->setStyleSheet("font-size: 11px; font-weight: bold; color: #7cb7ea; background: transparent; border: none; padding: 0px;");
 
     m_sliderVolume = new QSlider(Qt::Horizontal, this);
     m_sliderVolume->setRange(0, 100);
@@ -625,7 +625,7 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     auto* btnRowLayout = new QHBoxLayout();
     btnRowLayout->setSpacing(12);
 
-    auto* btnSave = new QPushButton("💾  SAVE & APPLY", this);
+    auto* btnSave = new QPushButton("SAVE & APPLY", this);
     btnSave->setFixedSize(170, 42);
     btnSave->setStyleSheet(
         "QPushButton {"
@@ -646,7 +646,7 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     );
     connect(btnSave, &QPushButton::clicked, this, &SettingsWidget::onSaveClicked);
 
-    auto* btnCancel = new QPushButton("⬅  BACK", this);
+    auto* btnCancel = new QPushButton("BACK", this);
     btnCancel->setFixedSize(140, 42);
     btnCancel->setStyleSheet(
         "QPushButton {"
@@ -678,11 +678,11 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
 void SettingsWidget::updateModeLabels() {
     bool elemOn = m_chkElements->isChecked();
     if (elemOn) {
-        m_rbSandtrix->setText("⏳  Sandtrix (Sand Physics Mode)  •  [🌊 Elements: ON]");
-        m_chkElements->setText("Enable Elemental Pieces (🌊 Water & ☣ Acid) — Currently ON");
+        m_rbSandtrix->setText("Sandtrix (Sand Physics Mode)  •  [Elements: ON]");
+        m_chkElements->setText("Enable Elemental Pieces (Water & Acid) — Currently ON");
     } else {
-        m_rbSandtrix->setText("⏳  Sandtrix (Sand Physics Mode)  •  [Elements: OFF]");
-        m_chkElements->setText("Enable Elemental Pieces (🌊 Water & ☣ Acid) — Currently OFF");
+        m_rbSandtrix->setText("Sandtrix (Sand Physics Mode)  •  [Elements: OFF]");
+        m_chkElements->setText("Enable Elemental Pieces (Water & Acid) — Currently OFF");
     }
 }
 
@@ -696,7 +696,8 @@ void SettingsWidget::updateSoundWidgets() {
     bool enabled = m_chkSound->isChecked();
     m_sliderVolume->setEnabled(enabled);
     if (m_lblSpeakerIcon) {
-        m_lblSpeakerIcon->setText(enabled ? "🔊" : "🔇");
+        m_lblSpeakerIcon->setText(enabled ? "VOL" : "MUTE");
+        m_lblSpeakerIcon->setStyleSheet(enabled ? "font-size: 11px; font-weight: bold; color: #7cb7ea; background: transparent; border: none; padding: 0px;" : "font-size: 11px; font-weight: bold; color: #718096; background: transparent; border: none; padding: 0px;");
     }
     if (enabled) {
         m_lblVolume->setText(QString("%1%").arg(m_sliderVolume->value()));
@@ -804,7 +805,7 @@ HowToPlayWidget::HowToPlayWidget(QWidget* parent)
     mainLayout->setContentsMargins(40, 20, 40, 20);
     mainLayout->setSpacing(14);
 
-    auto* header = new QLabel("📖 HOW TO PLAY SANDTRIX", this);
+    auto* header = new QLabel("HOW TO PLAY SANDTRIX", this);
     header->setStyleSheet("color: #7cb7ea; font-size: 26px; font-weight: 900; letter-spacing: 2px;");
     header->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(header);
@@ -852,39 +853,39 @@ HowToPlayWidget::HowToPlayWidget(QWidget* parent)
         contentLayout->addWidget(card);
     };
 
-    addCard("⏳ 1. The Sand Dissolution Rule",
+    addCard("1. The Sand Dissolution Rule",
             "Blocks fall as classic Tetris tetrominoes (I, O, T, S, Z, J, L) that you can rotate, steer, and hold. "
             "However, the instant a block hits the ground or resting sand, it dissolves into hundreds of loose sand grains!",
             "#7cb7ea");
 
-    addCard("⚡ 2. Edge-to-Edge Line Clears",
+    addCard("2. Edge-to-Edge Line Clears",
             "Unlike traditional Tetris where straight horizontal rows clear, in Sandtrix you clear lines by forming an "
             "unbroken path of the SAME COLOR (Red, Gold, Green, or Blue) connecting the LEFT WALL (x=0) to the RIGHT WALL (x=W-1). "
             "Any 8-way continuous connected path of that color vaporizes!",
             "#e2b755");
 
-    addCard("🔥 3. Avalanche Combos",
+    addCard("3. Avalanche Combos",
             "When a colored band clears, all sand resting on top avalanches down into the gap. "
             "If the collapsing cascade creates a NEW connection between the walls, a COMBO CLEAR triggers with exponential score multipliers!",
             "#e27d9a");
 
-    addCard("🌊 4. Elemental Pieces (Sandtrix Mode)",
+    addCard("4. Elemental Pieces (Sandtrix Mode)",
             "• Water Blocks (Aqua): Liquid flows horizontally to fill gaps flat. Heavy sand sinks through water! Connecting water edge-to-edge triggers a Tidal Wave (+800 pts)!\n"
             "• Acid Blocks (Lime): Distinct radioactive lime blocks that actively dissolve sand directly beneath them on impact.\n"
             "• Note: Elemental pieces can be enabled or disabled in Settings for Sandtrix mode.",
             "#68c48a");
 
-    addCard("🧱 5. Classic Tetris Mode",
+    addCard("5. Classic Tetris Mode",
             "• Switch to 'Classic Tetris' on the Main Menu or in Settings to play authentic traditional grid Tetris!\n"
             "• Rigid solid blocks on a 10×17 mino grid: pieces do NOT dissolve into sand.\n"
             "• Complete full horizontal rows to score Single, Double, Triple, and 4-line TETRIS clears!",
             "#b794f4");
 
-    addCard("🎮 6. Complete Keyboard Controls",
-            "• [← / →] or [A / D] : Move Left / Right (DAS & ARR enabled)\n"
-            "• [↑] or [W / X] : Rotate Clockwise\n"
+    addCard("6. Complete Keyboard Controls",
+            "• [Left / Right] or [A / D] : Move Left / Right (DAS & ARR enabled)\n"
+            "• [Up] or [W / X] : Rotate Clockwise\n"
             "• [Z / Ctrl] : Rotate Counter-Clockwise\n"
-            "• [↓ / S] : Soft Drop\n"
+            "• [Down / S] : Soft Drop\n"
             "• [SPACE] : Hard Drop\n"
             "• [C / Shift] : Hold Piece\n"
             "• [P / Esc] : Pause / Resume\n"
@@ -895,7 +896,7 @@ HowToPlayWidget::HowToPlayWidget(QWidget* parent)
     scrollArea->setWidget(contentWidget);
     mainLayout->addWidget(scrollArea, 0, Qt::AlignCenter);
 
-    auto* btnBack = new QPushButton("⬅  BACK TO MENU", this);
+    auto* btnBack = new QPushButton("BACK TO MENU", this);
     btnBack->setFixedSize(200, 42);
     btnBack->setStyleSheet(
         "QPushButton {"

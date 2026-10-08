@@ -1,4 +1,4 @@
-# ⏳ SANDTRIX - Sand Tetris for Qt (C++17)
+# SANDTRIX - Sand Tetris for Qt (C++17)
 
 A complete, high-performance C++ implementation of **Sandtrix** (Falling Sand Tetris) built from scratch for **Qt Creator** using **Qt 6** and **C++17**.
 
@@ -6,11 +6,11 @@ This project re-imagines classic Tetris by simulating granular cellular automata
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
-- [Core Gameplay Mechanics](#-core-gameplay-mechanics)
-- [Elemental Materials System](#-elemental-materials-system)
-- [Mathematical & Algorithmic Implementation Details](#-mathematical--algorithmic-implementation-details)
+- [Core Gameplay Mechanics](#core-gameplay-mechanics)
+- [Game Modes: Sandtrix vs. Classic Tetris](#game-modes-sandtrix-vs-classic-tetris)
+- [Mathematical & Algorithmic Implementation Details](#mathematical--algorithmic-implementation-details)
   - [1. Two-Tier Coordinate & Grid System](#1-two-tier-coordinate--grid-system)
   - [2. Mino-to-Wall Grid Alignment Solution](#2-mino-to-wall-grid-alignment-solution)
   - [3. Cellular Automata Physics Engine](#3-cellular-automata-physics-engine)
@@ -19,12 +19,12 @@ This project re-imagines classic Tetris by simulating granular cellular automata
   - [6. High-Performance Direct Framebuffer Blitting](#6-high-performance-direct-framebuffer-blitting)
   - [7. Responsive DAS / ARR Input Handling](#7-responsive-das--arr-input-handling)
   - [8. Real-Time Procedural Audio Synthesizer](#8-real-time-procedural-audio-synthesizer)
-- [Color Palette & Ergonomic UI/UX Design](#-color-palette--ergonomic-uiux-design)
+- [Color Palette & Ergonomic UI/UX Design](#color-palette--ergonomic-uiux-design)
   - [Distinguishable Block Palette](#distinguishable-block-palette)
   - [Eye-Comfort Slate Theme & Distinctive Button Hierarchy](#eye-comfort-slate-theme--distinctive-button-hierarchy)
-- [Complete Controls Reference](#-complete-controls-reference)
-- [File & Codebase Architecture](#-file--codebase-architecture)
-- [How to Build and Run](#-how-to-build-and-run)
+- [Complete Controls Reference](#complete-controls-reference)
+- [File & Codebase Architecture](#file--codebase-architecture)
+- [How to Build and Run](#how-to-build-and-run)
   - [Method 1: Qt Creator with CMake (Recommended)](#method-1-qt-creator-with-cmake-recommended)
   - [Method 2: Qt Creator with qmake](#method-2-qt-creator-with-qmake)
   - [Method 3: Quick Terminal Build (`build.bat`)](#method-3-quick-terminal-build-buildbat)
@@ -32,7 +32,7 @@ This project re-imagines classic Tetris by simulating granular cellular automata
 
 ---
 
-## 🎮 Core Gameplay Mechanics
+## Core Gameplay Mechanics
 
 1. **Rigid Steerable Tetrominoes**:
    - The 7 traditional shapes (**I, O, T, S, Z, J, L**) spawn at the ceiling.
@@ -50,18 +50,18 @@ This project re-imagines classic Tetris by simulating granular cellular automata
 
 ---
 
-## 🕹️ Game Modes: Sandtrix vs. Classic Tetris
+## Game Modes: Sandtrix vs. Classic Tetris
 
 Sandtrix supports two full game modes, toggleable directly from the **Main Menu** or inside **Settings**:
 
-### 1. ⏳ Sandtrix (Sand Physics Mode) - *Default*
+### 1. Sandtrix (Sand Physics Mode) - *Default*
 - **Granular Dissolution**: Rigid tetrominoes dissolve into loose sand grains on impact.
 - **Fluid Cellular Automata**: Multi-substep physics engine simulates sliding granular avalanches and slopes.
 - **Edge-to-Edge Line Clears**: Clear colored bands by connecting unbroken paths of the same color from the left wall ($x = 0$) to the right wall ($x = 79$).
 - **Avalanche Combos**: Collapsing sand triggers compounding combo multipliers.
-- **Optional Elemental Pieces**: Toggle 🌊 Water (lateral leveling & tidal wave clears) and ☣ Acid (corrosive excavation) on or off in Settings.
+- **Optional Elemental Pieces**: Toggle Water (lateral leveling & tidal wave clears) and Acid (corrosive excavation) on or off in Settings.
 
-### 2. 🧱 Classic Tetris (Solid Grid Mode)
+### 2. Classic Tetris (Solid Grid Mode)
 - **Authentic Rigid Grid**: Traditional 10-column × 17-row mino playfield with subtle dot-line grid rendering.
 - **No Sand Physics**: Blocks stay rigid and solid upon landing—no grain dissolution!
 - **Horizontal Row Clears**: Complete solid horizontal rows to clear lines with traditional scoring:
@@ -73,7 +73,7 @@ Sandtrix supports two full game modes, toggleable directly from the **Main Menu*
 
 ---
 
-## 🔬 Mathematical & Algorithmic Implementation Details
+## Mathematical & Algorithmic Implementation Details
 
 ### 1. Two-Tier Coordinate & Grid System
 The simulation operates on two coordinate spaces:
@@ -182,7 +182,7 @@ Generated samples are converted to 16-bit PCM mono WAVs in-memory and played via
 
 ---
 
-## 🎨 Color Palette & Ergonomic UI/UX Design
+## Color Palette & Ergonomic UI/UX Design
 
 ### Distinguishable Block Palette
 To ensure effortless identification without visual fatigue, the game uses **one unified canonical palette** ([`src/Config.h`](file:///C:/Users/omega/Desktop/sandtrix/src/Config.h)):
@@ -193,8 +193,8 @@ To ensure effortless identification without visual fatigue, the game uses **one 
 | **Block 2** | **Amber Gold** | `#F5B923` | $43^\circ$ (Yellow) | Warm sunny gold; high luminance and bright contrast. |
 | **Block 3** | **Emerald Jade** | `#28B964` | $145^\circ$ (Green) | Deep botanical green; cleanly separated from gold & blue. |
 | **Block 4** | **Sapphire Blue** | `#327DEB` | $216^\circ$ (Blue) | Vibrant royal cobalt blue; cool and saturated. |
-| **Water (🌊)** | **Turquoise Aqua** | `#00D2D7` | $180^\circ$ (Cyan) | Sparkling light cyan; distinct from deep sapphire blue. |
-| **Acid (☣)** | **Chartreuse Lime** | `#CDEB2D` | $70^\circ$ (Lime) | Radioactive yellow-green; distinct from emerald jade. |
+| **Water** | **Turquoise Aqua** | `#00D2D7` | $180^\circ$ (Cyan) | Sparkling light cyan; distinct from deep sapphire blue. |
+| **Acid** | **Chartreuse Lime** | `#CDEB2D` | $70^\circ$ (Lime) | Radioactive yellow-green; distinct from emerald jade. |
 | **Background** | **Slate Charcoal** | `#12151C` | — | Deep, warm dark slate eliminating glare and eye strain. |
 
 ### Eye-Comfort Slate Theme & Distinctive Button Hierarchy
@@ -213,7 +213,7 @@ To ensure effortless identification without visual fatigue, the game uses **one 
 
 ---
 
-## 🎮 Complete Controls Reference
+## Complete Controls Reference
 
 | Action | Primary Key | Secondary Key | Description |
 | :--- | :--- | :--- | :--- |
@@ -230,7 +230,7 @@ To ensure effortless identification without visual fatigue, the game uses **one 
 
 ---
 
-## 📂 File & Codebase Architecture
+## File & Codebase Architecture
 
 ```
 sandtrix/
@@ -265,7 +265,7 @@ sandtrix/
 
 ---
 
-## 🛠️ How to Build and Run
+## How to Build and Run
 
 ### Prerequisites
 - **Qt 6** (Qt 6.5+ or Qt 6.12+ recommended) with `Qt6Widgets` and `Qt6Multimedia`.
@@ -323,6 +323,6 @@ The resulting `build/` folder contains a standalone, double-clickable `sandtrix.
 
 ---
 
-## 📜 License
+## License
 
 Created with modern C++ and Qt 6. Free for educational, hobby, and open-source game development.

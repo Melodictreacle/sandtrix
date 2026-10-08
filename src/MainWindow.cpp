@@ -227,7 +227,7 @@ QWidget* MainWindow::createGameScreen() {
     auto* btnRow = new QHBoxLayout();
     btnRow->setSpacing(6);
 
-    m_btnSound = new QPushButton("🔊 Sound", optionsFrame);
+    m_btnSound = new QPushButton("Sound", optionsFrame);
     m_btnSound->setStyleSheet(
         "QPushButton {"
         "  background-color: #242c3d;"
@@ -250,7 +250,7 @@ QWidget* MainWindow::createGameScreen() {
     connect(m_btnSound, &QPushButton::clicked, this, &MainWindow::onToggleSound);
     btnRow->addWidget(m_btnSound);
 
-    m_btnRestart = new QPushButton("🔄 Restart", optionsFrame);
+    m_btnRestart = new QPushButton("Restart", optionsFrame);
     m_btnRestart->setStyleSheet(
         "QPushButton {"
         "  background-color: #242c3d;"
@@ -275,7 +275,7 @@ QWidget* MainWindow::createGameScreen() {
 
     optionsLayout->addLayout(btnRow);
 
-    m_btnMenu = new QPushButton("🏠 Main Menu", optionsFrame);
+    m_btnMenu = new QPushButton("Main Menu", optionsFrame);
     m_btnMenu->setStyleSheet(
         "QPushButton {"
         "  background-color: #2b364c;"
@@ -350,16 +350,16 @@ void MainWindow::onStartGame() {
     // Update locked info badges
     QString modeName;
     if (m_settings.gameMode == GameMode::ClassicTetris) {
-        modeName = "🧱 Classic Tetris";
+        modeName = "Classic Tetris";
     } else {
-        modeName = m_settings.enableElements ? "⏳ Sandtrix (🌊 Elements: ON)" : "⏳ Sandtrix (Elements: OFF)";
+        modeName = m_settings.enableElements ? "Sandtrix (Elements: ON)" : "Sandtrix (Elements: OFF)";
     }
     m_lblLockedElements->setText(QString("%1 | Lvl %2").arg(modeName).arg(m_settings.startingLevel));
 
     // Update audio
     m_audio.setMuted(!m_settings.soundEnabled);
     m_audio.setVolume(m_settings.volume);
-    m_btnSound->setText(m_settings.soundEnabled ? "🔊 Sound" : "🔇 Muted");
+    m_btnSound->setText(m_settings.soundEnabled ? "Sound: ON" : "Sound: OFF");
 
     // Switch to game screen
     switchToScreen(m_gameScreen);
@@ -437,7 +437,7 @@ void MainWindow::syncUI() {
 void MainWindow::onToggleSound() {
     bool muted = m_audio.toggleMute();
     m_settings.soundEnabled = !muted;
-    m_btnSound->setText(muted ? "🔇 Muted" : "🔊 Sound");
+    m_btnSound->setText(muted ? "Sound: OFF" : "Sound: ON");
     if (m_canvas) m_canvas->setFocus();
 }
 

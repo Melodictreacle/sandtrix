@@ -88,7 +88,7 @@ void GameCanvas::onGameLoop() {
 
     if (event.cleared) {
         if (event.isClassicTetris) {
-            static const char* classicNames[] = { "", "SINGLE!", "DOUBLE!", "TRIPLE!", "🔥 TETRIS!" };
+            static const char* classicNames[] = { "", "SINGLE!", "DOUBLE!", "TRIPLE!", "TETRIS!" };
             int l = std::min(4, std::max(1, event.classicLines));
             QString title = QString("%1 +%2").arg(classicNames[l]).arg(event.points);
             QColor flashCol = (l == 4) ? QColor(245, 185, 35) : m_palette.colors[l % m_palette.colors.size()];
@@ -130,7 +130,7 @@ void GameCanvas::onGameLoop() {
             if (event.isTidalWave) {
                 m_particles.addFloatingText(
                     CANVAS_WIDTH / 2.0f - 65.0f, static_cast<float>(midY),
-                    QString("🌊 TIDAL WAVE! +%1").arg(event.points),
+                    QString("TIDAL WAVE! +%1").arg(event.points),
                     col, 16
                 );
             } else if (event.combo > 1) {

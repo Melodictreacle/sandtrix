@@ -68,8 +68,8 @@ inline const std::vector<ColorPalette>& getAvailablePalettes() {
 
 // Game Mode enumeration
 enum class GameMode {
-    Sandtrix = 0,       // ⏳ Sandtrix: Falling sand cellular automata, edge-to-edge flood-fill clears
-    ClassicTetris = 1   // 🧱 Classic Tetris: Solid rigid minos, traditional horizontal row clears
+    Sandtrix = 0,       // Sandtrix: Falling sand cellular automata, edge-to-edge flood-fill clears
+    ClassicTetris = 1   // Classic Tetris: Solid rigid minos, traditional horizontal row clears
 };
 
 // Game Settings chosen before game start

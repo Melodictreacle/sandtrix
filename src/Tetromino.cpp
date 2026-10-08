@@ -220,9 +220,9 @@ uint8_t BagRandomizer::pickColor(size_t sequenceIndex) {
         float roll = chanceDist(rng);
 
         if (roll < 0.15f) {
-            return MATERIAL_WATER; // 🌊 Water block!
+            return MATERIAL_WATER; // Water block!
         } else if (roll < 0.22f) {
-            return MATERIAL_ACID;  // ☣ Acid block!
+            return MATERIAL_ACID;  // Acid block!
         }
     }
 

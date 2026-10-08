@@ -62,7 +62,7 @@ ComboBadge::ComboBadge(QWidget* parent)
 
 void ComboBadge::updateCombo(int combo) {
     if (combo > 1) {
-        m_lblCombo->setText(QString("🔥 COMBO x%1!").arg(combo));
+        m_lblCombo->setText(QString("COMBO x%1!").arg(combo));
         setVisible(true);
     } else {
         setVisible(false);
@@ -101,10 +101,10 @@ void PiecePreviewWidget::paintEvent(QPaintEvent*) {
 
     if (m_cachedPiece) {
         if (m_cachedPiece->isWater()) {
-            displayTitle = "🌊 WATER";
+            displayTitle = "WATER";
             titleCol = QColor("#00E6FF");
         } else if (m_cachedPiece->isAcid()) {
-            displayTitle = "☣ ACID";
+            displayTitle = "ACID";
             titleCol = QColor("#39FF14");
         }
     }

@@ -76,12 +76,57 @@ enum class GameMode {
     MysteryClassic = 3  // Troll Classic Tetris: Solid rigid grid + mid-air morphs, bombs, wildcards & sarcastic roasts!
 };
 
+// Run Statistics struct (Tracks time, keys, accuracy, and efficiency metrics)
+struct RunStats {
+    int timeElapsedMs = 0;
+    int keysPressed = 0;
+    int piecesPlaced = 0;
+    int lineGoal = 0; // 0 = Endless / Marathon
+    int linesCleared = 0;
+    int score = 0;
+    int maxCombo = 0;
+    int singles = 0;
+    int doubles = 0;
+    int triples = 0;
+    int tetrises = 0;
+    bool victory = false;
+
+    double getPPS() const {
+        return (timeElapsedMs > 0) ? (piecesPlaced * 1000.0 / timeElapsedMs) : 0.0;
+    }
+    double getKPP() const {
+        return (piecesPlaced > 0) ? (static_cast<double>(keysPressed) / piecesPlaced) : 0.0;
+    }
+    double getKPS() const {
+        return (timeElapsedMs > 0) ? (keysPressed * 1000.0 / timeElapsedMs) : 0.0;
+    }
+    double getAccuracyPct() const {
+        if (piecesPlaced == 0) return 0.0;
+        double lpp = static_cast<double>(linesCleared) / piecesPlaced;
+        return std::min(100.0, (lpp / 0.40) * 100.0);
+    }
+    double getLinesPerPiece() const {
+        return (piecesPlaced > 0) ? (static_cast<double>(linesCleared) / piecesPlaced) : 0.0;
+    }
+    QString getFormattedTime() const {
+        int totalSecs = timeElapsedMs / 1000;
+        int mins = totalSecs / 60;
+        int secs = totalSecs % 60;
+        int centis = (timeElapsedMs % 1000) / 10;
+        return QString("%1:%2.%3")
+            .arg(mins, 2, 10, QChar('0'))
+            .arg(secs, 2, 10, QChar('0'))
+            .arg(centis, 2, 10, QChar('0'));
+    }
+};
+
 // Game Settings chosen before game start
 struct GameSettings {
     int paletteIndex = 0; // Single fixed palette
     int startingLevel = 1;
     GameMode gameMode = GameMode::Sandtrix; // Default is Sandtrix!
     bool enableElements = false;            // Elemental pieces (Water & Acid) in Sandtrix mode
+    int lineGoal = 0;                       // 0 = Endless / Marathon, 20, 40, 100 lines
     bool soundEnabled = true;
     float volume = 0.65f;
     bool fullscreen = false;                // Default to windowed mode (user can maximize/minimize)

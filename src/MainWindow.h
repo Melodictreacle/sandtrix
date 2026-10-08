@@ -50,6 +50,8 @@ private:
     StatCard* m_cardHighScore;
     StatCard* m_cardLevel;
     StatCard* m_cardBands;
+    StatCard* m_cardTime;
+    StatCard* m_cardKeys;
     ComboBadge* m_comboBadge;
 
     std::vector<PiecePreviewWidget*> m_nextPreviews;

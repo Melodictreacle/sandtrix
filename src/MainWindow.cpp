@@ -128,11 +128,15 @@ QWidget* MainWindow::createGameScreen() {
     m_cardHighScore = new StatCard("High Score", "0", "#F5B923", this);
     m_cardLevel = new StatCard("Level", "1", "#28B964", this);
     m_cardBands = new StatCard("Lines Cleared", "0", "#EB4B4B", this);
+    m_cardTime = new StatCard("Time", "00:00.00", "#A78BFA", this);
+    m_cardKeys = new StatCard("Keys / PPS", "0  (0.0)", "#38B2AC", this);
 
     leftLayout->addWidget(m_cardScore);
     leftLayout->addWidget(m_cardHighScore);
     leftLayout->addWidget(m_cardLevel);
     leftLayout->addWidget(m_cardBands);
+    leftLayout->addWidget(m_cardTime);
+    leftLayout->addWidget(m_cardKeys);
 
     m_comboBadge = new ComboBadge(this);
     leftLayout->addWidget(m_comboBadge);
@@ -358,7 +362,8 @@ void MainWindow::onStartGame() {
     } else {
         modeName = m_settings.enableElements ? "Sandtrix (Elements: ON)" : "Sandtrix (Elements: OFF)";
     }
-    m_lblLockedElements->setText(QString("%1 | Lvl %2").arg(modeName).arg(m_settings.startingLevel));
+    QString goalStr = (m_settings.lineGoal > 0) ? QString("Goal: %1L").arg(m_settings.lineGoal) : "Endless";
+    m_lblLockedElements->setText(QString("%1 | Lvl %2 | %3").arg(modeName).arg(m_settings.startingLevel).arg(goalStr));
 
     // Update audio
     m_audio.setMuted(!m_settings.soundEnabled);
@@ -425,11 +430,22 @@ void MainWindow::onSettingsChanged(const GameSettings& settings) {
 void MainWindow::syncUI() {
     if (!m_canvas || m_stack->currentWidget() != m_gameScreen) return;
     const SandEngine& eng = m_canvas->getEngine();
+    const RunStats& stats = eng.getRunStats();
 
     m_cardScore->setValue(QLocale().toString(eng.getScore()));
     m_cardHighScore->setValue(QLocale().toString(eng.getHighScore()));
     m_cardLevel->setValue(QString::number(eng.getLevel()));
-    m_cardBands->setValue(QString::number(eng.getLinesCleared()));
+
+    if (eng.getLineGoal() > 0) {
+        m_cardBands->setTitle("Goal Progress");
+        m_cardBands->setValue(QString("%1 / %2").arg(eng.getLinesCleared()).arg(eng.getLineGoal()));
+    } else {
+        m_cardBands->setTitle("Lines Cleared");
+        m_cardBands->setValue(QString::number(eng.getLinesCleared()));
+    }
+
+    m_cardTime->setValue(stats.getFormattedTime());
+    m_cardKeys->setValue(QString("%1  (%2)").arg(stats.keysPressed).arg(QString::number(stats.getPPS(), 'f', 1)));
     m_comboBadge->updateCombo(eng.getCombo());
 
     m_holdPreview->setPiece(eng.getHoldPiece());

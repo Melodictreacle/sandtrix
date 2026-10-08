@@ -49,6 +49,7 @@ private slots:
     void onLevelUp();
     void updateLevelDesc();
     void onModeChanged();
+    void updateGoalDesc();
 
 private:
     void updateModeLabels();
@@ -66,6 +67,13 @@ private:
     QRadioButton* m_rbMystery;
     QRadioButton* m_rbMysteryClassic;
     QCheckBox* m_chkElements;
+
+    // Mission / Line Goal Selection
+    QRadioButton* m_rbGoalEndless;
+    QRadioButton* m_rbGoal20;
+    QRadioButton* m_rbGoal40;
+    QRadioButton* m_rbGoal100;
+    QLabel* m_lblGoalDesc;
 
     // Display & Audio
     QCheckBox* m_chkFullscreen;

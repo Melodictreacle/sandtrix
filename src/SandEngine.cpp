@@ -52,7 +52,9 @@ SandEngine::SandEngine(int numColors, bool enableElements, int startLevel, GameM
       m_pieceShiftTriggerY(0),
       m_pieceHasShifted(false),
       m_pieceEligibleForShift(false),
-      m_mysteryCalamityTimer(0)
+      m_mysteryCalamityTimer(0),
+      m_lineGoal(0),
+      m_missionCompleted(false)
 {
     m_highScore = loadHighScore();
     refillNextQueue();
@@ -64,7 +66,11 @@ int SandEngine::loadHighScore() {
     if (file.open(QIODevice::ReadOnly)) {
         QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
         if (doc.isObject()) {
-            return doc.object().value("high_score").toInt(0);
+            int hs = doc.object().value("high_score").toInt(0);
+            if (hs < 0 || hs > 999999999) {
+                hs = 0;
+            }
+            return hs;
         }
     }
     return 0;
@@ -74,7 +80,8 @@ void SandEngine::saveHighScore() {
     QFile file("highscores.json");
     if (file.open(QIODevice::WriteOnly)) {
         QJsonObject obj;
-        obj["high_score"] = m_highScore;
+        int safeHigh = std::max(0, std::min(999999999, m_highScore));
+        obj["high_score"] = safeHigh;
         file.write(QJsonDocument(obj).toJson());
     }
 }
@@ -90,6 +97,7 @@ void SandEngine::applySettings(const GameSettings& settings, int numColors) {
     m_startLevel = settings.startingLevel;
     m_gameMode = settings.gameMode;
     m_enableElements = settings.enableElements && (settings.gameMode == GameMode::Sandtrix);
+    m_lineGoal = settings.lineGoal;
     reset();
 }
 
@@ -107,6 +115,7 @@ void SandEngine::reset() {
     m_combo = 0;
     m_gameOver = false;
     m_paused = false;
+    m_missionCompleted = false;
     m_holdPiece.reset();
     m_canHold = true;
     m_gravityTimer = 0;
@@ -119,6 +128,9 @@ void SandEngine::reset() {
     m_pieceHasShifted = false;
     m_pieceEligibleForShift = false;
     m_mysteryCalamityTimer = 0;
+
+    m_stats = RunStats();
+    m_stats.lineGoal = m_lineGoal;
 
     m_randomizer = BagRandomizer(m_numColors, m_enableElements && (m_gameMode == GameMode::Sandtrix), isMystery());
     m_nextQueue.clear();
@@ -328,8 +340,10 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
             outEvent->bombY = cy;
             outEvent->bombCraterCoords = crater;
         }
-        int points = static_cast<int>(crater.size()) * 15 * m_level;
-        m_score += points;
+        int64_t rawPoints = static_cast<int64_t>(crater.size()) * 15 * m_level;
+        int points = static_cast<int>(std::max<int64_t>(0, std::min<int64_t>(1000000, rawPoints)));
+        int64_t newScore = static_cast<int64_t>(m_score) + points;
+        m_score = static_cast<int>(std::max<int64_t>(0, std::min<int64_t>(999999999, newScore)));
         if (m_score > m_highScore) {
             m_highScore = m_score;
             saveHighScore();
@@ -342,6 +356,7 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
         }
     }
 
+    m_stats.piecesPlaced++;
     m_activePiece.reset();
     m_canHold = true;
     m_lockTimer = 0;
@@ -654,7 +669,12 @@ int SandEngine::checkClassicLineClears(std::vector<std::pair<int, int>>& outCoor
 
 EngineTickEvent SandEngine::tick(int dtMs) {
     EngineTickEvent event;
-    if (m_gameOver || m_paused) return event;
+    if (m_gameOver || m_missionCompleted || m_paused) return event;
+
+    m_stats.timeElapsedMs += dtMs;
+    m_stats.score = m_score;
+    m_stats.linesCleared = m_linesCleared;
+    m_stats.maxCombo = std::max(m_stats.maxCombo, m_combo);
 
     event.isClassicTetris = isClassicTetris();
     event.isMystery = isMystery();
@@ -722,15 +742,33 @@ EngineTickEvent SandEngine::tick(int dtMs) {
         if (linesCount > 0) {
             static const int lineScores[] = { 0, 100, 300, 500, 800 };
             int basePoints = (linesCount <= 4) ? lineScores[linesCount] : (800 + (linesCount - 4) * 200);
-            int points = basePoints * m_level;
+            int64_t rawPoints = static_cast<int64_t>(basePoints) * m_level;
+            int points = static_cast<int>(std::max<int64_t>(0, std::min<int64_t>(1000000, rawPoints)));
 
-            m_score += points;
+            int64_t newScore = static_cast<int64_t>(m_score) + points;
+            m_score = static_cast<int>(std::max<int64_t>(0, std::min<int64_t>(999999999, newScore)));
+
             if (m_score > m_highScore) {
                 m_highScore = m_score;
                 saveHighScore();
             }
 
             m_linesCleared += linesCount;
+            m_stats.linesCleared = m_linesCleared;
+            m_stats.score = m_score;
+
+            if (linesCount == 1) m_stats.singles++;
+            else if (linesCount == 2) m_stats.doubles++;
+            else if (linesCount == 3) m_stats.triples++;
+            else if (linesCount >= 4) m_stats.tetrises++;
+
+            // Check Mission Line Goal
+            if (m_lineGoal > 0 && m_linesCleared >= m_lineGoal && !m_missionCompleted) {
+                m_missionCompleted = true;
+                m_stats.victory = true;
+                event.missionCompleted = true;
+            }
+
             m_level = m_startLevel + (m_linesCleared / 10);
             m_lastDropHadClear = true;
 
@@ -782,16 +820,34 @@ EngineTickEvent SandEngine::tick(int dtMs) {
 
     if (bandsCount > 0) {
         m_combo++;
-        double comboMult = std::pow(COMBO_MULTIPLIER_BASE, m_combo - 1);
+        double comboExponent = std::min(12.0, static_cast<double>(m_combo - 1));
+        double comboMult = std::pow(COMBO_MULTIPLIER_BASE, comboExponent);
+        comboMult = std::min(40.0, comboMult);
+
         int bonusPerBand = (clearedCol == MATERIAL_WATER) ? (POINTS_PER_BAND * 2) : POINTS_PER_BAND;
-        int points = static_cast<int>((grainsCount * POINTS_PER_GRAIN + bandsCount * bonusPerBand) * comboMult * m_level);
-        m_score += points;
+        int64_t rawPoints = static_cast<int64_t>((grainsCount * POINTS_PER_GRAIN + bandsCount * bonusPerBand) * comboMult * m_level);
+        int points = static_cast<int>(std::max<int64_t>(0, std::min<int64_t>(5000000, rawPoints)));
+
+        int64_t newScore = static_cast<int64_t>(m_score) + points;
+        m_score = static_cast<int>(std::max<int64_t>(0, std::min<int64_t>(999999999, newScore)));
+
         if (m_score > m_highScore) {
             m_highScore = m_score;
             saveHighScore();
         }
 
         m_linesCleared += bandsCount;
+        m_stats.linesCleared = m_linesCleared;
+        m_stats.score = m_score;
+        m_stats.maxCombo = std::max(m_stats.maxCombo, m_combo);
+
+        // Check Mission Line Goal
+        if (m_lineGoal > 0 && m_linesCleared >= m_lineGoal && !m_missionCompleted) {
+            m_missionCompleted = true;
+            m_stats.victory = true;
+            event.missionCompleted = true;
+        }
+
         m_level = m_startLevel + (m_linesCleared / 5);
         m_lastDropHadClear = true;
 

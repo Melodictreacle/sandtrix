@@ -38,6 +38,8 @@ private slots:
 private:
     void drawPauseOverlay(QPainter& painter);
     void drawGameOverOverlay(QPainter& painter);
+    void drawMissionCompleteOverlay(QPainter& painter);
+    void drawStatsTable(QPainter& painter, int startY, bool isVictory);
 
     AudioManager* m_audio;
     ColorPalette m_palette;
@@ -55,6 +57,7 @@ private:
 
     double m_pulseTime;
     bool m_gameOverSoundPlayed;
+    bool m_victorySoundPlayed;
     int m_confusionTimer; // Ms remaining for inverted controls in Mystery mode
     int m_dangerRoastTimer; // Ms timer between near-ceiling roasts
 };

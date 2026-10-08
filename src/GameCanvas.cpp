@@ -17,6 +17,7 @@ GameCanvas::GameCanvas(AudioManager* audio, const ColorPalette& initialPalette, 
       m_activeDir(0),
       m_pulseTime(0.0),
       m_gameOverSoundPlayed(false),
+      m_victorySoundPlayed(false),
       m_confusionTimer(0),
       m_dangerRoastTimer(0)
 {
@@ -42,6 +43,7 @@ void GameCanvas::applySettings(const GameSettings& settings) {
     m_engine.applySettings(settings, numColors);
     m_particles.clear();
     m_gameOverSoundPlayed = false;
+    m_victorySoundPlayed = false;
     m_confusionTimer = 0;
     m_dangerRoastTimer = 0;
     update();
@@ -52,6 +54,7 @@ void GameCanvas::restartGame() {
     m_engine.reset();
     m_particles.clear();
     m_gameOverSoundPlayed = false;
+    m_victorySoundPlayed = false;
     m_confusionTimer = 0;
     m_dangerRoastTimer = 0;
     update();
@@ -290,6 +293,15 @@ void GameCanvas::onGameLoop() {
         }
     }
 
+    if (event.missionCompleted || (m_engine.isMissionCompleted() && !m_victorySoundPlayed)) {
+        if (m_audio) m_audio->playClear(4);
+        m_victorySoundPlayed = true;
+        m_particles.triggerShake(6.0f);
+        m_particles.addFloatingText(CANVAS_WIDTH / 2.0f - 85.0f, 150.0f, "MISSION COMPLETE!", QColor(255, 215, 0), 20);
+    } else if (!m_engine.isMissionCompleted()) {
+        m_victorySoundPlayed = false;
+    }
+
     if (m_engine.isGameOver() && !m_gameOverSoundPlayed) {
         if (m_audio) m_audio->playGameOver();
         m_gameOverSoundPlayed = true;
@@ -310,9 +322,11 @@ void GameCanvas::keyPressEvent(QKeyEvent* event) {
     }
 
     if (key == Qt::Key_P || key == Qt::Key_Escape) {
-        m_engine.togglePaused();
-        update();
-        emit stateChanged();
+        if (!m_engine.isMissionCompleted() && !m_engine.isGameOver()) {
+            m_engine.togglePaused();
+            update();
+            emit stateChanged();
+        }
         return;
     }
 
@@ -321,9 +335,11 @@ void GameCanvas::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
-    if (m_engine.isGameOver() || m_engine.isPaused()) {
+    if (m_engine.isGameOver() || m_engine.isMissionCompleted() || m_engine.isPaused()) {
         return;
     }
+
+    m_engine.recordKeyPress();
 
     bool inverted = (m_confusionTimer > 0);
 
@@ -554,7 +570,9 @@ void GameCanvas::paintEvent(QPaintEvent*) {
     m_particles.draw(painter);
 
     // 7. Overlays
-    if (m_engine.isPaused()) {
+    if (m_engine.isMissionCompleted()) {
+        drawMissionCompleteOverlay(painter);
+    } else if (m_engine.isPaused()) {
         drawPauseOverlay(painter);
     } else if (m_engine.isGameOver()) {
         drawGameOverOverlay(painter);
@@ -574,31 +592,117 @@ void GameCanvas::drawPauseOverlay(QPainter& painter) {
     painter.drawText(subRect, Qt::AlignCenter, "Press P or Esc to Resume");
 }
 
+void GameCanvas::drawStatsTable(QPainter& painter, int startY, bool isVictory) {
+    const RunStats& stats = m_engine.getRunStats();
+
+    QRect tableRect(20, startY, 360, 366);
+    painter.setPen(QPen(QColor("#283248"), 1));
+    painter.setBrush(QColor(18, 23, 34, 240));
+    painter.drawRoundedRect(tableRect, 10, 10);
+
+    struct StatEntry {
+        QString label;
+        QString value;
+        QColor valCol;
+    };
+
+    QString goalStr;
+    if (stats.lineGoal > 0) {
+        if (isVictory) {
+            goalStr = QString("%1 Lines (COMPLETED)").arg(stats.lineGoal);
+        } else {
+            int pct = (stats.lineGoal > 0) ? static_cast<int>(stats.linesCleared * 100.0 / stats.lineGoal) : 0;
+            goalStr = QString("%1 / %2 (%3%)").arg(stats.linesCleared).arg(stats.lineGoal).arg(pct);
+        }
+    } else {
+        goalStr = QString("%1 Lines (Endless)").arg(stats.linesCleared);
+    }
+
+    std::vector<StatEntry> entries = {
+        { "TIME TAKEN", stats.getFormattedTime(), QColor("#63b3ed") },
+        { "KEYS PRESSED", QString::number(stats.keysPressed), QColor("#ecc94b") },
+        { "GOAL", goalStr, isVictory ? QColor("#48bb78") : QColor("#cbd5e0") },
+        { "PIECES PLACED", QString::number(stats.piecesPlaced), QColor("#e2e8f0") },
+        { "SPEED (PPS)", QString("%1 pcs/s").arg(stats.getPPS(), 0, 'f', 2), QColor("#38b2ac") },
+        { "FINESSE (KPP)", QString("%1 keys/pc").arg(stats.getKPP(), 0, 'f', 2), QColor("#ed8936") },
+        { "ACCURACY", QString("%1% (%2 l/pc)").arg(stats.getAccuracyPct(), 0, 'f', 1).arg(stats.getLinesPerPiece(), 0, 'f', 2), QColor("#b794f4") },
+        { "MAX COMBO", QString("x%1").arg(stats.maxCombo), QColor("#f687b3") },
+        { "FINAL SCORE", QLocale().toString(stats.score), QColor("#f6ad55") },
+        { "HIGH SCORE", QLocale().toString(m_engine.getHighScore()), QColor("#f6e05e") }
+    };
+
+    int colW = 168;
+    int cellH = 64;
+    int leftPad = 28;
+
+    for (size_t i = 0; i < entries.size(); ++i) {
+        int r = static_cast<int>(i / 2);
+        int c = static_cast<int>(i % 2);
+        int x = leftPad + c * (colW + 10);
+        int y = startY + 12 + r * cellH;
+
+        QRect cellBox(x, y, colW, cellH - 8);
+        painter.setPen(QPen(QColor("#242d40"), 1));
+        painter.setBrush(QColor(12, 16, 24, 180));
+        painter.drawRoundedRect(cellBox, 6, 6);
+
+        painter.setFont(QFont("Segoe UI", 8, QFont::Bold));
+        painter.setPen(QColor("#94a1b2"));
+        painter.drawText(QRect(x + 8, y + 6, colW - 16, 16), Qt::AlignLeft | Qt::AlignVCenter, entries[i].label);
+
+        painter.setFont(QFont("Segoe UI", 11, QFont::Bold));
+        painter.setPen(entries[i].valCol);
+        painter.drawText(QRect(x + 8, y + 24, colW - 16, 26), Qt::AlignLeft | Qt::AlignVCenter, entries[i].value);
+    }
+}
+
+void GameCanvas::drawMissionCompleteOverlay(QPainter& painter) {
+    painter.fillRect(rect(), QColor(8, 14, 20, 230));
+
+    // Victory Banner
+    QRect bannerRect(20, 38, 360, 78);
+    painter.setPen(QPen(QColor("#2f855a"), 2));
+    painter.setBrush(QColor("#132a1f"));
+    painter.drawRoundedRect(bannerRect, 10, 10);
+
+    painter.setFont(QFont("Segoe UI", 21, QFont::Bold));
+    painter.setPen(QColor("#48bb78"));
+    painter.drawText(QRect(20, 46, 360, 32), Qt::AlignCenter, "MISSION COMPLETE!");
+
+    const RunStats& stats = m_engine.getRunStats();
+    painter.setFont(QFont("Segoe UI", 11, QFont::Bold));
+    painter.setPen(QColor("#9ae6b4"));
+    painter.drawText(QRect(20, 82, 360, 22), Qt::AlignCenter,
+        QString("GOAL REACHED: %1 / %1 LINES").arg(stats.lineGoal));
+
+    // Stats Table
+    drawStatsTable(painter, 126, true);
+
+    // Call to Action
+    int restartAlpha = static_cast<int>(170 + 75 * std::sin(m_pulseTime * 4.0));
+    painter.setFont(QFont("Segoe UI", 12, QFont::Bold));
+    painter.setPen(QColor(124, 183, 234, restartAlpha));
+    painter.drawText(QRect(0, 508, CANVAS_WIDTH, 26), Qt::AlignCenter, "Press [R] to Play Again");
+
+    painter.setFont(QFont("Segoe UI", 10));
+    painter.setPen(QColor("#a0aec0"));
+    painter.drawText(QRect(0, 536, CANVAS_WIDTH, 20), Qt::AlignCenter, "Press [Esc] for Main Menu");
+}
+
 void GameCanvas::drawGameOverOverlay(QPainter& painter) {
-    painter.fillRect(rect(), QColor(15, 8, 12, 210));
+    painter.fillRect(rect(), QColor(15, 8, 12, 230));
 
-    int centerY = CANVAS_HEIGHT / 2 - 50;
+    // Header Banner
+    QRect bannerRect(20, 38, 360, 78);
+    painter.setPen(QPen(QColor("#742a2a"), 2));
+    painter.setBrush(QColor("#2d1519"));
+    painter.drawRoundedRect(bannerRect, 10, 10);
 
-    painter.setFont(QFont("Segoe UI", 28, QFont::Bold));
+    painter.setFont(QFont("Segoe UI", 21, QFont::Bold));
     painter.setPen(QColor("#e27d9a"));
-    painter.drawText(QRect(0, centerY, CANVAS_WIDTH, 40), Qt::AlignCenter, "GAME OVER");
+    painter.drawText(QRect(20, 46, 360, 32), Qt::AlignCenter, "GAME OVER");
 
-    painter.setFont(QFont("Segoe UI", 14));
-    painter.setPen(QColor("#f7fafc"));
-    painter.drawText(
-        QRect(0, centerY + 55, CANVAS_WIDTH, 25),
-        Qt::AlignCenter,
-        QString("Score: %L1").arg(m_engine.getScore())
-    );
-
-    painter.setFont(QFont("Segoe UI", 12));
-    painter.setPen(QColor("#e2b755"));
-    painter.drawText(
-        QRect(0, centerY + 85, CANVAS_WIDTH, 25),
-        Qt::AlignCenter,
-        QString("High Score: %L1").arg(m_engine.getHighScore())
-    );
-
+    const RunStats& stats = m_engine.getRunStats();
     if (m_engine.isMystery()) {
         static const char* gameOverRoasts[] = {
             "SKILL ISSUE DETECTED",
@@ -607,18 +711,33 @@ void GameCanvas::drawGameOverOverlay(QPainter& painter) {
             "PERHAPS TETRIS ISN'T FOR YOU",
             "NICE TRY, BETTER LUCK NEXT TIME"
         };
-        int rIdx = (m_engine.getScore() / 250) % 5;
+        int rIdx = (stats.score / 250) % 5;
         painter.setFont(QFont("Segoe UI", 11, QFont::Bold));
         painter.setPen(QColor("#fc8181"));
-        painter.drawText(QRect(0, centerY + 112, CANVAS_WIDTH, 20), Qt::AlignCenter, gameOverRoasts[rIdx]);
+        painter.drawText(QRect(20, 82, 360, 22), Qt::AlignCenter, gameOverRoasts[rIdx]);
+    } else if (stats.lineGoal > 0) {
+        int pct = (stats.lineGoal > 0) ? static_cast<int>(stats.linesCleared * 100.0 / stats.lineGoal) : 0;
+        painter.setFont(QFont("Segoe UI", 11, QFont::Bold));
+        painter.setPen(QColor("#cbd5e0"));
+        painter.drawText(QRect(20, 82, 360, 22), Qt::AlignCenter,
+            QString("MISSION PROGRESS: %1 / %2 LINES (%3%)").arg(stats.linesCleared).arg(stats.lineGoal).arg(pct));
+    } else {
+        painter.setFont(QFont("Segoe UI", 11, QFont::Bold));
+        painter.setPen(QColor("#cbd5e0"));
+        painter.drawText(QRect(20, 82, 360, 22), Qt::AlignCenter,
+            QString("LINES CLEARED: %1").arg(stats.linesCleared));
     }
 
+    // Stats Table
+    drawStatsTable(painter, 126, false);
+
+    // Call to Action
     int restartAlpha = static_cast<int>(170 + 75 * std::sin(m_pulseTime * 4.0));
     painter.setFont(QFont("Segoe UI", 12, QFont::Bold));
     painter.setPen(QColor(124, 183, 234, restartAlpha));
-    painter.drawText(
-        QRect(0, centerY + 138, CANVAS_WIDTH, 30),
-        Qt::AlignCenter,
-        "Press [R] to Play Again"
-    );
+    painter.drawText(QRect(0, 508, CANVAS_WIDTH, 26), Qt::AlignCenter, "Press [R] to Retry");
+
+    painter.setFont(QFont("Segoe UI", 10));
+    painter.setPen(QColor("#a0aec0"));
+    painter.drawText(QRect(0, 536, CANVAS_WIDTH, 20), Qt::AlignCenter, "Press [Esc] for Main Menu");
 }

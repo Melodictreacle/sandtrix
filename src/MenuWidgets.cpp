@@ -192,10 +192,11 @@ void MainMenuWidget::updateSettingsBadge(const GameSettings& settings) {
     } else {
         modeBadge = settings.enableElements ? "Sandtrix (Elements: ON)" : "Sandtrix (Elements: OFF)";
     }
+    QString goalBadge = (settings.lineGoal > 0) ? QString("Goal: %1 Lines").arg(settings.lineGoal) : "Goal: Endless";
     QString sndStr = settings.soundEnabled ? "Sound ON" : "Sound OFF";
 
-    m_lblBadge->setText(QString("Level %1  •  %2  •  %3")
-        .arg(settings.startingLevel).arg(modeBadge).arg(sndStr));
+    m_lblBadge->setText(QString("Level %1  •  %2  •  %3  •  %4")
+        .arg(settings.startingLevel).arg(modeBadge).arg(goalBadge).arg(sndStr));
 
     if (m_btnModeToggle) {
         if (settings.gameMode == GameMode::Mystery) {
@@ -327,18 +328,42 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     notice->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(notice);
 
-    auto* card = new QFrame(this);
-    card->setObjectName("settingsCard");
-    card->setFixedWidth(480);
-    card->setStyleSheet(
-        "QFrame#settingsCard {"
-        "  background-color: #161b26;"
+    auto* scrollArea = new QScrollArea(this);
+    scrollArea->setFixedWidth(560);
+    scrollArea->setFixedHeight(530);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setStyleSheet(
+        "QScrollArea {"
         "  border: 1px solid #283248;"
-        "  border-radius: 14px;"
-        "  padding: 16px;"
+        "  background-color: #161b26;"
+        "  border-radius: 12px;"
+        "}"
+        "QScrollBar:vertical {"
+        "  border: none;"
+        "  background: #10141e;"
+        "  width: 10px;"
+        "  margin: 4px 2px 4px 0px;"
+        "  border-radius: 4px;"
+        "}"
+        "QScrollBar::handle:vertical {"
+        "  background: #2b364c;"
+        "  min-height: 20px;"
+        "  border-radius: 4px;"
+        "}"
+        "QScrollBar::handle:vertical:hover {"
+        "  background: #3d4f70;"
+        "}"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
+        "  height: 0px;"
         "}"
     );
+
+    auto* card = new QWidget();
+    card->setObjectName("settingsCard");
+    card->setStyleSheet("background-color: transparent;");
     auto* formLayout = new QVBoxLayout(card);
+    formLayout->setContentsMargins(16, 16, 16, 16);
     formLayout->setSpacing(14);
 
     // 1. GAME MODE SELECTION
@@ -346,21 +371,21 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     lblModeTitle->setStyleSheet("color: #94a1b2; font-size: 11px; font-weight: bold; letter-spacing: 1px;");
     formLayout->addWidget(lblModeTitle);
 
-    auto* modeBox = new QFrame(this);
+    auto* modeBox = new QFrame(card);
     modeBox->setObjectName("modeBox");
     modeBox->setStyleSheet(
         "QFrame#modeBox {"
         "  background-color: #10141e;"
         "  border: 1px solid #283248;"
         "  border-radius: 10px;"
-        "  padding: 10px;"
+        "  padding: 12px;"
         "}"
     );
     auto* modeLayout = new QVBoxLayout(modeBox);
-    modeLayout->setSpacing(8);
+    modeLayout->setSpacing(6);
 
     // Sandtrix Radio Button
-    m_rbSandtrix = new QRadioButton("Sandtrix (Sand Physics Mode)", this);
+    m_rbSandtrix = new QRadioButton("Sandtrix (Sand Physics Mode)", modeBox);
     m_rbSandtrix->setCursor(Qt::PointingHandCursor);
     m_rbSandtrix->setStyleSheet(
         "QRadioButton {"
@@ -374,18 +399,22 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
         "}"
     );
 
-    auto* lblSandtrixDesc = new QLabel("  • Mino blocks dissolve into loose granular sand upon contact\n  • Avalanche cascade physics & 8-way wall-to-wall flood fill clears", this);
-    lblSandtrixDesc->setStyleSheet("color: #94a1b2; font-size: 10px; margin-left: 24px; line-height: 1.3;");
+    auto* lblSandtrixDesc = new QLabel(
+        "• Mino blocks dissolve into loose granular sand upon contact\n"
+        "• Avalanche cascade physics and 8-way wall-to-wall flood fill clears", modeBox);
+    lblSandtrixDesc->setWordWrap(true);
+    lblSandtrixDesc->setContentsMargins(24, 0, 0, 0);
+    lblSandtrixDesc->setStyleSheet("color: #94a1b2; font-size: 10px;");
 
     // Optional elemental pieces checkbox for Sandtrix
-    m_chkElements = new QCheckBox("Enable Elemental Pieces (Water & Acid)", this);
+    m_chkElements = new QCheckBox("Enable Elemental Pieces (Water and Acid)", modeBox);
     m_chkElements->setCursor(Qt::PointingHandCursor);
+    m_chkElements->setContentsMargins(24, 2, 0, 0);
     m_chkElements->setStyleSheet(
         "QCheckBox {"
         "  color: #00d2d7;"
         "  font-size: 11px;"
         "  font-weight: bold;"
-        "  margin-left: 24px;"
         "}"
         "QCheckBox::indicator {"
         "  width: 16px;"
@@ -394,7 +423,7 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     );
 
     // Classic Tetris Radio Button
-    m_rbClassicTetris = new QRadioButton("Classic Tetris (Solid Grid Mode)", this);
+    m_rbClassicTetris = new QRadioButton("Classic Tetris (Solid Grid Mode)", modeBox);
     m_rbClassicTetris->setCursor(Qt::PointingHandCursor);
     m_rbClassicTetris->setStyleSheet(
         "QRadioButton {"
@@ -408,11 +437,16 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
         "}"
     );
 
-    auto* lblClassicDesc = new QLabel("  • Authentic traditional Tetris on a 10×17 mino grid (no sand physics)\n  • Solid rigid blocks: pieces stay locked without melting into sand\n  • Traditional full horizontal line clears (Single, Double, Triple, TETRIS!)", this);
-    lblClassicDesc->setStyleSheet("color: #94a1b2; font-size: 10px; margin-left: 24px; line-height: 1.3;");
+    auto* lblClassicDesc = new QLabel(
+        "• Authentic traditional Tetris on a 10x17 mino grid (no sand physics)\n"
+        "• Solid rigid blocks: pieces stay locked without melting into sand\n"
+        "• Traditional full horizontal line clears (Single, Double, Triple, TETRIS)", modeBox);
+    lblClassicDesc->setWordWrap(true);
+    lblClassicDesc->setContentsMargins(24, 0, 0, 0);
+    lblClassicDesc->setStyleSheet("color: #94a1b2; font-size: 10px;");
 
     // Mystery Mode Radio Button
-    m_rbMystery = new QRadioButton("Mystery Sandtrix (Shape-Shifting & Sand Chaos)", this);
+    m_rbMystery = new QRadioButton("Mystery Sandtrix (Shape-Shifting and Sand Chaos)", modeBox);
     m_rbMystery->setCursor(Qt::PointingHandCursor);
     m_rbMystery->setStyleSheet(
         "QRadioButton {"
@@ -426,11 +460,16 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
         "}"
     );
 
-    auto* lblMysteryDesc = new QLabel("  • Mid-air shape-shifting & piece mutations: blocks transform while falling!\n  • Wildcard TNT bomb pieces, mini-dots, plus pieces, earthquakes & wind gusts!\n  • Unpredictable, wacky, and hilarious sand physics gameplay", this);
-    lblMysteryDesc->setStyleSheet("color: #94a1b2; font-size: 10px; margin-left: 24px; line-height: 1.3;");
+    auto* lblMysteryDesc = new QLabel(
+        "• Mid-air shape-shifting and piece mutations: blocks transform while falling\n"
+        "• Wildcard TNT bomb pieces, mini-dots, plus pieces, earthquakes and wind gusts\n"
+        "• Unpredictable, wacky, and hilarious sand physics gameplay", modeBox);
+    lblMysteryDesc->setWordWrap(true);
+    lblMysteryDesc->setContentsMargins(24, 0, 0, 0);
+    lblMysteryDesc->setStyleSheet("color: #94a1b2; font-size: 10px;");
 
     // Troll Classic Tetris Radio Button
-    m_rbMysteryClassic = new QRadioButton("Troll Classic Tetris (Chaos & Sarcastic Roasts)", this);
+    m_rbMysteryClassic = new QRadioButton("Troll Classic Tetris (Chaos and Sarcastic Roasts)", modeBox);
     m_rbMysteryClassic->setCursor(Qt::PointingHandCursor);
     m_rbMysteryClassic->setStyleSheet(
         "QRadioButton {"
@@ -445,21 +484,23 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     );
 
     auto* lblMysteryClassicDesc = new QLabel(
-        "  • Authentic 10x17 rigid Tetris grid hijacked with mid-air piece mutations & shape shifts!\n"
-        "  • TNT bomb blocks, mini-dots, plus pieces, earthquakes & wind gusts blowing pieces off-course!\n"
-        "  • Sarcastic troll roasts on singles, doubles, near-death misplays, and hard drops!", this);
-    lblMysteryClassicDesc->setStyleSheet("color: #94a1b2; font-size: 10px; margin-left: 24px; line-height: 1.3;");
+        "• Authentic 10x17 rigid Tetris grid hijacked with mid-air mutations and shape shifts\n"
+        "• TNT bomb blocks, mini-dots, plus pieces, earthquakes and wind gusts blowing pieces off-course\n"
+        "• Sarcastic troll roasts on singles, doubles, near-death misplays, and hard drops", modeBox);
+    lblMysteryClassicDesc->setWordWrap(true);
+    lblMysteryClassicDesc->setContentsMargins(24, 0, 0, 0);
+    lblMysteryClassicDesc->setStyleSheet("color: #94a1b2; font-size: 10px;");
 
     modeLayout->addWidget(m_rbSandtrix);
     modeLayout->addWidget(lblSandtrixDesc);
     modeLayout->addWidget(m_chkElements);
-    modeLayout->addSpacing(4);
+    modeLayout->addSpacing(8);
     modeLayout->addWidget(m_rbClassicTetris);
     modeLayout->addWidget(lblClassicDesc);
-    modeLayout->addSpacing(4);
+    modeLayout->addSpacing(8);
     modeLayout->addWidget(m_rbMystery);
     modeLayout->addWidget(lblMysteryDesc);
-    modeLayout->addSpacing(4);
+    modeLayout->addSpacing(8);
     modeLayout->addWidget(m_rbMysteryClassic);
     modeLayout->addWidget(lblMysteryClassicDesc);
     formLayout->addWidget(modeBox);
@@ -615,8 +656,72 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     connect(m_btnLevelUp, &QPushButton::clicked, this, &SettingsWidget::onLevelUp);
     connect(m_spinLevel, QOverload<int>::of(&QSpinBox::valueChanged), this, &SettingsWidget::updateLevelDesc);
 
-    // 3. DISPLAY & AUDIO
-    auto* lblAudioTitle = new QLabel("DISPLAY & AUDIO", this);
+    // 3. MISSION / LINE GOAL
+    auto* lblGoalTitle = new QLabel("MISSION / LINE GOAL", this);
+    lblGoalTitle->setStyleSheet("color: #94a1b2; font-size: 11px; font-weight: bold; letter-spacing: 1px;");
+    formLayout->addWidget(lblGoalTitle);
+
+    auto* goalBox = new QFrame(this);
+    goalBox->setObjectName("goalBox");
+    goalBox->setStyleSheet(
+        "QFrame#goalBox {"
+        "  background-color: #10141e;"
+        "  border: 1px solid #283248;"
+        "  border-radius: 10px;"
+        "  padding: 10px;"
+        "}"
+    );
+    auto* goalBoxLayout = new QVBoxLayout(goalBox);
+    goalBoxLayout->setSpacing(8);
+
+    auto* goalRow = new QHBoxLayout();
+    goalRow->setSpacing(14);
+
+    auto styleGoalRadio = [](QRadioButton* rb, const QString& col) {
+        rb->setCursor(Qt::PointingHandCursor);
+        rb->setStyleSheet(QString(
+            "QRadioButton {"
+            "  color: %1;"
+            "  font-size: 12px;"
+            "  font-weight: 800;"
+            "}"
+            "QRadioButton::indicator {"
+            "  width: 16px;"
+            "  height: 16px;"
+            "}"
+        ).arg(col));
+    };
+
+    m_rbGoalEndless = new QRadioButton("Endless", this);
+    m_rbGoal20 = new QRadioButton("20 Lines", this);
+    m_rbGoal40 = new QRadioButton("40 Lines", this);
+    m_rbGoal100 = new QRadioButton("100 Lines", this);
+
+    styleGoalRadio(m_rbGoalEndless, "#68c48a");
+    styleGoalRadio(m_rbGoal20, "#38b2ac");
+    styleGoalRadio(m_rbGoal40, "#7cb7ea");
+    styleGoalRadio(m_rbGoal100, "#f6ad55");
+
+    goalRow->addWidget(m_rbGoalEndless);
+    goalRow->addWidget(m_rbGoal20);
+    goalRow->addWidget(m_rbGoal40);
+    goalRow->addWidget(m_rbGoal100);
+    goalRow->addStretch();
+    goalBoxLayout->addLayout(goalRow);
+
+    m_lblGoalDesc = new QLabel(this);
+    m_lblGoalDesc->setStyleSheet("color: #a0aec0; font-size: 10px; font-weight: 600;");
+    goalBoxLayout->addWidget(m_lblGoalDesc);
+
+    formLayout->addWidget(goalBox);
+
+    connect(m_rbGoalEndless, &QRadioButton::toggled, this, &SettingsWidget::updateGoalDesc);
+    connect(m_rbGoal20, &QRadioButton::toggled, this, &SettingsWidget::updateGoalDesc);
+    connect(m_rbGoal40, &QRadioButton::toggled, this, &SettingsWidget::updateGoalDesc);
+    connect(m_rbGoal100, &QRadioButton::toggled, this, &SettingsWidget::updateGoalDesc);
+
+    // 4. DISPLAY AND AUDIO
+    auto* lblAudioTitle = new QLabel("DISPLAY AND AUDIO", this);
     lblAudioTitle->setStyleSheet("color: #94a1b2; font-size: 11px; font-weight: bold; letter-spacing: 1px;");
     formLayout->addWidget(lblAudioTitle);
 
@@ -709,13 +814,14 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     connect(m_chkSound, &QCheckBox::toggled, this, &SettingsWidget::updateSoundWidgets);
     connect(m_sliderVolume, &QSlider::valueChanged, this, &SettingsWidget::updateSoundWidgets);
 
-    mainLayout->addWidget(card, 0, Qt::AlignCenter);
+    scrollArea->setWidget(card);
+    mainLayout->addWidget(scrollArea, 0, Qt::AlignCenter);
 
-    // Save & Cancel buttons
+    // Save and Cancel buttons
     auto* btnRowLayout = new QHBoxLayout();
     btnRowLayout->setSpacing(12);
 
-    auto* btnSave = new QPushButton("SAVE & APPLY", this);
+    auto* btnSave = new QPushButton("SAVE AND APPLY", this);
     btnSave->setFixedSize(170, 42);
     btnSave->setStyleSheet(
         "QPushButton {"
@@ -768,11 +874,9 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
 void SettingsWidget::updateModeLabels() {
     bool elemOn = m_chkElements->isChecked();
     if (elemOn) {
-        m_rbSandtrix->setText("Sandtrix (Sand Physics Mode)  •  [Elements: ON]");
-        m_chkElements->setText("Enable Elemental Pieces (Water & Acid) — Currently ON");
+        m_chkElements->setText("Enable Elemental Pieces (Water and Acid) — ON");
     } else {
-        m_rbSandtrix->setText("Sandtrix (Sand Physics Mode)  •  [Elements: OFF]");
-        m_chkElements->setText("Enable Elemental Pieces (Water & Acid) — Currently OFF");
+        m_chkElements->setText("Enable Elemental Pieces (Water and Acid) — OFF");
     }
 }
 
@@ -818,6 +922,18 @@ void SettingsWidget::updateSoundWidgets() {
     }
 }
 
+void SettingsWidget::updateGoalDesc() {
+    if (m_rbGoal20->isChecked()) {
+        m_lblGoalDesc->setText("20 Lines Sprint • Fast-paced sprint! Clear 20 lines as quickly as possible.");
+    } else if (m_rbGoal40->isChecked()) {
+        m_lblGoalDesc->setText("40 Lines Sprint • The classic competitive speed benchmark! Clear 40 lines.");
+    } else if (m_rbGoal100->isChecked()) {
+        m_lblGoalDesc->setText("100 Lines Endurance • Marathon speedrun! Test your speed and stamina over 100 lines.");
+    } else {
+        m_lblGoalDesc->setText("Endless Marathon • Play continuously until top-out. Strive for the highest score!");
+    }
+}
+
 void SettingsWidget::loadSettings(const GameSettings& settings) {
     m_spinLevel->setValue(settings.startingLevel);
     m_rbSandtrix->setChecked(settings.gameMode == GameMode::Sandtrix);
@@ -826,6 +942,18 @@ void SettingsWidget::loadSettings(const GameSettings& settings) {
     m_rbMysteryClassic->setChecked(settings.gameMode == GameMode::MysteryClassic);
     m_chkElements->setChecked(settings.enableElements);
     m_chkElements->setEnabled(settings.gameMode == GameMode::Sandtrix);
+
+    if (settings.lineGoal == 20) {
+        m_rbGoal20->setChecked(true);
+    } else if (settings.lineGoal == 40) {
+        m_rbGoal40->setChecked(true);
+    } else if (settings.lineGoal == 100) {
+        m_rbGoal100->setChecked(true);
+    } else {
+        m_rbGoalEndless->setChecked(true);
+    }
+    updateGoalDesc();
+
     m_chkFullscreen->setChecked(settings.fullscreen);
     m_chkSound->setChecked(settings.soundEnabled);
     m_sliderVolume->setValue(static_cast<int>(settings.volume * 100.0f));
@@ -848,6 +976,17 @@ GameSettings SettingsWidget::getSettings() const {
         s.gameMode = GameMode::Sandtrix;
     }
     s.enableElements = (s.gameMode == GameMode::Sandtrix) && m_chkElements->isChecked();
+
+    if (m_rbGoal20->isChecked()) {
+        s.lineGoal = 20;
+    } else if (m_rbGoal40->isChecked()) {
+        s.lineGoal = 40;
+    } else if (m_rbGoal100->isChecked()) {
+        s.lineGoal = 100;
+    } else {
+        s.lineGoal = 0;
+    }
+
     s.fullscreen = m_chkFullscreen->isChecked();
     s.soundEnabled = m_chkSound->isChecked();
     s.volume = m_sliderVolume->value() / 100.0f;
@@ -993,7 +1132,13 @@ HowToPlayWidget::HowToPlayWidget(QWidget* parent)
             "• Sarcastic commentary: the game actively roasts single and double clears, near-death moments, and misplays!",
             "#ed8936");
 
-    addCard("8. Complete Keyboard Controls",
+    addCard("8. Mission Sprint & Performance Analytics",
+            "• Mission Sprint Goals: Choose your target in Settings (Endless, 20 Lines Sprint, 40 Lines Sprint, or 100 Lines Endurance).\n"
+            "• Once your mission target is reached, the run completes with victory celebration and fanfare!\n"
+            "• Performance Analytics: The end-of-run summary displays Time Taken, Keys Pressed, Goal Progress, Accuracy %, Pieces Placed, Speed (PPS - Pieces Per Second), and Finesse (KPP - Keys Per Piece).",
+            "#38b2ac");
+
+    addCard("9. Complete Keyboard Controls",
             "• [Left / Right] or [A / D] : Move Left / Right (DAS & ARR enabled)\n"
             "• [Up] or [W / X] : Rotate Clockwise\n"
             "• [Z / Ctrl] : Rotate Counter-Clockwise\n"

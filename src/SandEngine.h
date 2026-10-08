@@ -35,6 +35,7 @@ struct EngineTickEvent {
     bool windGust = false;
     int windDir = 0;
     bool confusionTriggered = false;
+    bool missionCompleted = false;
 };
 
 class SandEngine {
@@ -74,6 +75,12 @@ public:
     int getLinesCleared() const { return m_linesCleared; }
     int getCombo() const { return m_combo; }
     bool isGameOver() const { return m_gameOver; }
+    bool isMissionCompleted() const { return m_missionCompleted; }
+    int getLineGoal() const { return m_lineGoal; }
+    int getLinesRemaining() const { return (m_lineGoal > 0) ? std::max(0, m_lineGoal - m_linesCleared) : 0; }
+    void recordKeyPress() { if (!m_gameOver && !m_missionCompleted && !m_paused) m_stats.keysPressed++; }
+    const RunStats& getRunStats() const { return m_stats; }
+
     bool isPaused() const { return m_paused; }
     void setPaused(bool paused) { m_paused = paused; }
     void togglePaused() { m_paused = !m_paused; }
@@ -119,4 +126,9 @@ private:
     bool m_pieceHasShifted;
     bool m_pieceEligibleForShift;
     int m_mysteryCalamityTimer;
+
+    // Mission & Analytics Variables
+    int m_lineGoal;
+    bool m_missionCompleted;
+    RunStats m_stats;
 };

@@ -35,6 +35,10 @@ void StatCard::setValue(const QString& value) {
     m_lblVal->setText(value);
 }
 
+void StatCard::setTitle(const QString& title) {
+    m_lblTitle->setText(title.toUpper());
+}
+
 // ----------------- ComboBadge -----------------
 
 ComboBadge::ComboBadge(QWidget* parent)

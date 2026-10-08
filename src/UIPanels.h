@@ -12,6 +12,7 @@ class StatCard : public QFrame {
 public:
     StatCard(const QString& title, const QString& initialValue = "0", const QString& accentColor = "#00E6FF", QWidget* parent = nullptr);
     void setValue(const QString& value);
+    void setTitle(const QString& title);
 
 private:
     QLabel* m_lblTitle;

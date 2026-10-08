@@ -33,10 +33,12 @@ constexpr double COMBO_MULTIPLIER_BASE = 1.5;
 // Special Elemental Material IDs
 constexpr uint8_t MATERIAL_WATER = 50;   // Liquid: flows horizontally, displaced upward by sinking sand
 constexpr uint8_t MATERIAL_ACID  = 51;   // Acid: dissolves sand directly below it on contact
+constexpr uint8_t MATERIAL_BOMB  = 52;   // TNT Bomb: detonates on contact and blasts a crater of sand
 
 // Distinct, High-Visibility Material Colors (Completely distinct from sand blocks)
 inline QColor getWaterColor() { return QColor(0, 210, 215); }   // Distinct Turquoise Aqua (#00D2D7)
 inline QColor getAcidColor()  { return QColor(205, 235, 45); }  // Distinct Chartreuse Lime (#CDEB2D)
+inline QColor getBombColor()  { return QColor(255, 75, 75); }   // Distinct TNT Red-Orange (#FF4B4B)
 
 // Color Palette struct
 struct ColorPalette {
@@ -69,7 +71,8 @@ inline const std::vector<ColorPalette>& getAvailablePalettes() {
 // Game Mode enumeration
 enum class GameMode {
     Sandtrix = 0,       // Sandtrix: Falling sand cellular automata, edge-to-edge flood-fill clears
-    ClassicTetris = 1   // Classic Tetris: Solid rigid minos, traditional horizontal row clears
+    ClassicTetris = 1,  // Classic Tetris: Solid rigid minos, traditional horizontal row clears
+    Mystery = 2         // Mystery Mode: Mid-air shape-shifting, TNT bombs, and wacky chaos events
 };
 
 // Game Settings chosen before game start

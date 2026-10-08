@@ -63,6 +63,7 @@ private:
     // Game Mode Selection
     QRadioButton* m_rbSandtrix;
     QRadioButton* m_rbClassicTetris;
+    QRadioButton* m_rbMystery;
     QCheckBox* m_chkElements;
 
     // Display & Audio

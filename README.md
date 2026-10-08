@@ -9,7 +9,7 @@ This project re-imagines classic Tetris by simulating granular cellular automata
 ## Table of Contents
 
 - [Core Gameplay Mechanics](#core-gameplay-mechanics)
-- [Game Modes: Sandtrix vs. Classic Tetris](#game-modes-sandtrix-vs-classic-tetris)
+- [Game Modes: Sandtrix vs. Classic Tetris vs. Mystery Mode](#game-modes-sandtrix-vs-classic-tetris-vs-mystery-mode)
 - [Mathematical & Algorithmic Implementation Details](#mathematical--algorithmic-implementation-details)
   - [1. Two-Tier Coordinate & Grid System](#1-two-tier-coordinate--grid-system)
   - [2. Mino-to-Wall Grid Alignment Solution](#2-mino-to-wall-grid-alignment-solution)
@@ -50,9 +50,9 @@ This project re-imagines classic Tetris by simulating granular cellular automata
 
 ---
 
-## Game Modes: Sandtrix vs. Classic Tetris
+## Game Modes: Sandtrix vs. Classic Tetris vs. Mystery Mode
 
-Sandtrix supports two full game modes, toggleable directly from the **Main Menu** or inside **Settings**:
+Sandtrix supports three game modes, toggleable directly from the **Main Menu** or inside **Settings**:
 
 ### 1. Sandtrix (Sand Physics Mode) - *Default*
 - **Granular Dissolution**: Rigid tetrominoes dissolve into loose sand grains on impact.
@@ -70,6 +70,12 @@ Sandtrix supports two full game modes, toggleable directly from the **Main Menu*
   - 3 Lines: **Triple** ($500 \times \text{level}$)
   - 4 Lines: **TETRIS!** ($800 \times \text{level}$)
 - **Traditional Mechanics**: SRS wall-kicks, ghost piece tracking, hard drop, soft drop, hold queue, and progressive gravity drops.
+
+### 3. Mystery Mode (Shape-Shifting & Chaos)
+- **Mid-Air Shape-Shifting**: Falling pieces spontaneously mutate mid-flight into different tetrominoes, tiny 1-mino dots, or 5-block plus crosses!
+- **TNT Bomb Blocks**: Rare flashing explosive blocks that blast an impact crater through resting sand heaps on impact.
+- **Wacky Calamities**: Seismic earthquakes that shift dunes, sudden gusts of wind pushing falling pieces, and temporary inverted controls!
+- **Funny Commentary**: Playful floating text roasts and hype callouts on combos, close calls, and hard drops.
 
 ---
 

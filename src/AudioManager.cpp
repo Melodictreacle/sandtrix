@@ -179,6 +179,32 @@ void AudioManager::initAudioAssets() {
         });
     }
     loadEffect("sizzle", sizzlePath);
+
+    // 9. Morph / Shape-Shift Sound (Comical pitch slide)
+    QString morphPath = "sounds/morph.wav";
+    if (!QFile::exists(morphPath)) {
+        generateWav(morphPath, 0.22, sampleRate, [](double t, double d, int) {
+            double freq = 300.0 + 520.0 * (t / d) + 60.0 * std::sin(2.0 * PI * 24.0 * t);
+            double env = std::sin(PI * (t / d));
+            return std::sin(2.0 * PI * freq * t) * env * 0.7;
+        });
+    }
+    loadEffect("morph", morphPath);
+
+    // 10. Boom / Explosion Sound (Low punchy rumble)
+    QString boomPath = "sounds/boom.wav";
+    if (!QFile::exists(boomPath)) {
+        static std::mt19937 boomRng(99);
+        static std::uniform_real_distribution<double> boomDist(-1.0, 1.0);
+        generateWav(boomPath, 0.35, sampleRate, [](double t, double d, int) {
+            double env = std::exp(-7.0 * t / d);
+            double lowFreq = 65.0 * std::exp(-3.0 * t / d);
+            double sine = std::sin(2.0 * PI * lowFreq * t);
+            double noise = boomDist(boomRng) * 0.45;
+            return (sine * 0.7 + noise) * env * 0.8;
+        });
+    }
+    loadEffect("boom", boomPath);
 }
 
 void AudioManager::loadEffect(const QString& name, const QString& filepath) {
@@ -240,4 +266,12 @@ void AudioManager::playWaterSplash() {
 
 void AudioManager::playAcidSizzle() {
     playEffect("sizzle");
+}
+
+void AudioManager::playMorph() {
+    playEffect("morph");
+}
+
+void AudioManager::playBoom() {
+    playEffect("boom");
 }

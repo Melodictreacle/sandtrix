@@ -26,6 +26,8 @@ public:
     void playGameOver();
     void playWaterSplash();
     void playAcidSizzle();
+    void playMorph();
+    void playBoom();
 
 private:
     void initAudioAssets();

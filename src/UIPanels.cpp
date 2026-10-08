@@ -106,6 +106,9 @@ void PiecePreviewWidget::paintEvent(QPaintEvent*) {
         } else if (m_cachedPiece->isAcid()) {
             displayTitle = "ACID";
             titleCol = QColor("#39FF14");
+        } else if (m_cachedPiece->isBomb()) {
+            displayTitle = "TNT BOMB";
+            titleCol = QColor("#FF4B4B");
         }
     }
 
@@ -127,6 +130,8 @@ void PiecePreviewWidget::paintEvent(QPaintEvent*) {
         grainColor = getWaterColor();
     } else if (m_cachedPiece->isAcid()) {
         grainColor = getAcidColor();
+    } else if (m_cachedPiece->isBomb()) {
+        grainColor = getBombColor();
     } else {
         int colIdx = m_cachedPiece->getColorIdx();
         grainColor = m_palette.colors[colIdx % m_palette.colors.size()];

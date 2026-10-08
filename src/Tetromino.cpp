@@ -69,6 +69,16 @@ std::vector<std::vector<uint8_t>> getMinoMatrix(char shape, int rot) {
             else { m[0][0] = m[0][1] = m[1][1] = m[2][1] = 1; }
             return m;
         }
+        case 'D': {
+            return {{1}}; // 1x1 Mini-Dot mino
+        }
+        case '+': {
+            return {
+                {0, 1, 0},
+                {1, 1, 1},
+                {0, 1, 0}
+            }; // 3x3 Plus / Cross mino
+        }
         default:
             return {{1, 1}, {1, 1}};
     }
@@ -78,7 +88,7 @@ std::vector<std::vector<uint8_t>> getMinoMatrix(char shape, int rot) {
 Tetromino::Tetromino(char shape, uint8_t colorIdx)
     : m_shape(shape), m_colorIdx(colorIdx), m_rotation(0), m_y(0)
 {
-    m_matrixSize = (shape == 'I') ? 4 : ((shape == 'O') ? 2 : 3);
+    m_matrixSize = (shape == 'I') ? 4 : ((shape == 'O') ? 2 : ((shape == 'D') ? 1 : 3));
     m_maskWidth = m_matrixSize * MINO_SIZE;
     m_maskHeight = m_matrixSize * MINO_SIZE;
     int boardMinos = BOARD_WIDTH / MINO_SIZE;
@@ -90,6 +100,7 @@ Tetromino::Tetromino(char shape, uint8_t colorIdx)
 QString Tetromino::getElementName() const {
     if (isWater()) return "WATER";
     if (isAcid()) return "ACID";
+    if (isBomb()) return "TNT";
     return "";
 }
 
@@ -176,6 +187,69 @@ bool Tetromino::tryRotate(int direction, const std::vector<uint8_t>& grid) {
     return false;
 }
 
+bool Tetromino::morphTo(char newShape, const std::vector<uint8_t>& grid) {
+    if (newShape == m_shape) return false;
+
+    char oldShape = m_shape;
+    int oldMatrixSize = m_matrixSize;
+    int oldMaskW = m_maskWidth;
+    int oldMaskH = m_maskHeight;
+    auto oldMask = m_grainMask;
+    int oldX = m_x;
+    int oldY = m_y;
+
+    m_shape = newShape;
+    m_matrixSize = (m_shape == 'I') ? 4 : ((m_shape == 'O') ? 2 : ((m_shape == 'D') ? 1 : 3));
+    m_maskWidth = m_matrixSize * MINO_SIZE;
+    m_maskHeight = m_matrixSize * MINO_SIZE;
+    updateGrainMask();
+
+    // Clamp inside board bounds
+    if (m_x < 0) m_x = 0;
+    if (m_x + m_maskWidth > BOARD_WIDTH) {
+        m_x = (BOARD_WIDTH - m_maskWidth);
+        m_x = (m_x / MINO_SIZE) * MINO_SIZE;
+    }
+    if (m_y + m_maskHeight > BOARD_HEIGHT) {
+        m_y = BOARD_HEIGHT - m_maskHeight;
+    }
+
+    // Try small nudges if colliding
+    static const std::vector<std::pair<int, int>> nudges = {
+        {0, 0}, {0, -MINO_SIZE}, {MINO_SIZE, 0}, {-MINO_SIZE, 0},
+        {0, -2 * MINO_SIZE}, {2 * MINO_SIZE, 0}, {-2 * MINO_SIZE, 0}
+    };
+
+    bool fits = false;
+    int targetX = m_x;
+    int targetY = m_y;
+
+    for (const auto& [dx, dy] : nudges) {
+        m_x = targetX + dx;
+        m_y = targetY + dy;
+        if (m_x >= 0 && m_x + m_maskWidth <= BOARD_WIDTH &&
+            m_y >= 0 && m_y + m_maskHeight <= BOARD_HEIGHT) {
+            if (!collides(grid)) {
+                fits = true;
+                break;
+            }
+        }
+    }
+
+    if (!fits) {
+        m_shape = oldShape;
+        m_matrixSize = oldMatrixSize;
+        m_maskWidth = oldMaskW;
+        m_maskHeight = oldMaskH;
+        m_grainMask = oldMask;
+        m_x = oldX;
+        m_y = oldY;
+        return false;
+    }
+
+    return true;
+}
+
 int Tetromino::getGhostY(const std::vector<uint8_t>& grid, int step) const {
     int ghostY = m_y;
     while (!collides(grid, 0, ghostY - m_y + step)) {
@@ -198,14 +272,22 @@ std::vector<GrainCoord> Tetromino::getOccupiedGrains() const {
 
 // ------------------- BagRandomizer -------------------
 
-BagRandomizer::BagRandomizer(int numColors, bool enableElements)
-    : m_numColors(numColors), m_enableElements(enableElements), m_piecesSpawned(0)
+BagRandomizer::BagRandomizer(int numColors, bool enableElements, bool isMystery)
+    : m_numColors(numColors), m_enableElements(enableElements), m_isMystery(isMystery), m_piecesSpawned(0)
 {
     refillBag();
 }
 
 void BagRandomizer::refillBag() {
     m_bag = {'I', 'O', 'T', 'S', 'Z', 'J', 'L'};
+    if (m_isMystery) {
+        static std::random_device rd;
+        static std::mt19937 g(rd());
+        std::uniform_real_distribution<float> d(0.0f, 1.0f);
+        if (d(g) < 0.35f) {
+            m_bag.push_back((d(g) < 0.5f) ? 'D' : '+');
+        }
+    }
     static std::random_device rd;
     static std::mt19937 g(rd());
     std::shuffle(m_bag.begin(), m_bag.end(), g);
@@ -215,7 +297,17 @@ uint8_t BagRandomizer::pickColor(size_t sequenceIndex) {
     static std::random_device rd;
     static std::mt19937 rng(rd());
 
-    if (m_enableElements) {
+    if (m_isMystery) {
+        std::uniform_real_distribution<float> chanceDist(0.0f, 1.0f);
+        float roll = chanceDist(rng);
+        if (roll < 0.12f) {
+            return MATERIAL_BOMB; // TNT Bomb block!
+        } else if (roll < 0.22f) {
+            return MATERIAL_WATER; // Water block!
+        } else if (roll < 0.30f) {
+            return MATERIAL_ACID;  // Acid block!
+        }
+    } else if (m_enableElements) {
         std::uniform_real_distribution<float> chanceDist(0.0f, 1.0f);
         float roll = chanceDist(rng);
 
@@ -260,7 +352,11 @@ std::vector<std::unique_ptr<Tetromino>> BagRandomizer::peekNext(int count) {
 
         simCount++;
         uint8_t col = static_cast<uint8_t>((std::hash<char>{}(shape) + simCount) % m_numColors + 1);
-        if (m_enableElements) {
+        if (m_isMystery) {
+            if (simCount % 6 == 0) col = MATERIAL_BOMB;
+            else if (simCount % 9 == 0) col = MATERIAL_WATER;
+            else if (simCount % 11 == 0) col = MATERIAL_ACID;
+        } else if (m_enableElements) {
             if (simCount % 7 == 0) col = MATERIAL_WATER;
             else if (simCount % 13 == 0) col = MATERIAL_ACID;
         }

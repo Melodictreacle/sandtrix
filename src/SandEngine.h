@@ -20,9 +20,21 @@ struct EngineTickEvent {
     bool landed = false;
     bool landedWater = false;
     bool landedAcid = false;
+    bool landedBomb = false;
     std::vector<std::pair<int, int>> acidCorrodedCoords;
     bool isClassicTetris = false;
     int classicLines = 0;
+    bool isMystery = false;
+    bool shapeShifted = false;
+    char newShape = 0;
+    bool bombDetonated = false;
+    int bombX = 0;
+    int bombY = 0;
+    std::vector<std::pair<int, int>> bombCraterCoords;
+    bool earthquake = false;
+    bool windGust = false;
+    int windDir = 0;
+    bool confusionTriggered = false;
 };
 
 class SandEngine {
@@ -42,6 +54,8 @@ public:
 
     bool updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded = nullptr);
     EngineTickEvent tick(int dtMs);
+    void triggerEarthquake();
+    bool detonateBombAt(int cx, int cy, int radius, std::vector<std::pair<int, int>>& outCrater);
 
     // Getters
     const std::vector<uint8_t>& getGrid() const { return m_grid; }
@@ -51,6 +65,7 @@ public:
     int getActiveGhostY() const;
 
     bool isClassicTetris() const { return m_gameMode == GameMode::ClassicTetris; }
+    bool isMystery() const { return m_gameMode == GameMode::Mystery; }
     GameMode getGameMode() const { return m_gameMode; }
 
     int getScore() const { return m_score; }
@@ -98,4 +113,10 @@ private:
     bool m_isSoftDropping;
     bool m_isSandMoving;
     bool m_lastDropHadClear;
+
+    // Mystery Mode Variables
+    int m_pieceShiftTriggerY;
+    bool m_pieceHasShifted;
+    bool m_pieceEligibleForShift;
+    int m_mysteryCalamityTimer;
 };

@@ -182,9 +182,10 @@ MainMenuWidget::MainMenuWidget(QWidget* parent)
 }
 
 void MainMenuWidget::updateSettingsBadge(const GameSettings& settings) {
-    bool isClassic = (settings.gameMode == GameMode::ClassicTetris);
     QString modeBadge;
-    if (isClassic) {
+    if (settings.gameMode == GameMode::Mystery) {
+        modeBadge = "Mystery Mode";
+    } else if (settings.gameMode == GameMode::ClassicTetris) {
         modeBadge = "Classic Tetris";
     } else {
         modeBadge = settings.enableElements ? "Sandtrix (Elements: ON)" : "Sandtrix (Elements: OFF)";
@@ -195,51 +196,28 @@ void MainMenuWidget::updateSettingsBadge(const GameSettings& settings) {
         .arg(settings.startingLevel).arg(modeBadge).arg(sndStr));
 
     if (m_btnModeToggle) {
-        if (!isClassic) {
-            if (settings.enableElements) {
-                m_btnModeToggle->setText("MODE: SANDTRIX (ELEMENTS: ON)");
-                m_btnModeToggle->setStyleSheet(
-                    "QPushButton {"
-                    "  background-color: #142834;"
-                    "  color: #00d2d7;"
-                    "  font-size: 12px;"
-                    "  font-weight: 800;"
-                    "  border: 1.5px solid #1f576e;"
-                    "  border-radius: 8px;"
-                    "  letter-spacing: 0.5px;"
-                    "}"
-                    "QPushButton:hover {"
-                    "  background-color: #1a3749;"
-                    "  border-color: #38b2ac;"
-                    "  color: #81e6d9;"
-                    "}"
-                    "QPushButton:pressed {"
-                    "  background-color: #0f1e27;"
-                    "}"
-                );
-            } else {
-                m_btnModeToggle->setText("MODE: SANDTRIX (ELEMENTS: OFF)");
-                m_btnModeToggle->setStyleSheet(
-                    "QPushButton {"
-                    "  background-color: #172b22;"
-                    "  color: #68c48a;"
-                    "  font-size: 12px;"
-                    "  font-weight: 800;"
-                    "  border: 1.5px solid #285e43;"
-                    "  border-radius: 8px;"
-                    "  letter-spacing: 0.5px;"
-                    "}"
-                    "QPushButton:hover {"
-                    "  background-color: #1f3b2e;"
-                    "  border-color: #38a169;"
-                    "  color: #a7f3d0;"
-                    "}"
-                    "QPushButton:pressed {"
-                    "  background-color: #12211a;"
-                    "}"
-                );
-            }
-        } else {
+        if (settings.gameMode == GameMode::Mystery) {
+            m_btnModeToggle->setText("MODE: MYSTERY (SHAPE SHIFT & CHAOS)");
+            m_btnModeToggle->setStyleSheet(
+                "QPushButton {"
+                "  background-color: #3b1728;"
+                "  color: #f687b3;"
+                "  font-size: 11px;"
+                "  font-weight: 800;"
+                "  border: 1.5px solid #97266d;"
+                "  border-radius: 8px;"
+                "  letter-spacing: 0.5px;"
+                "}"
+                "QPushButton:hover {"
+                "  background-color: #521b37;"
+                "  border-color: #d53f8c;"
+                "  color: #fbb6ce;"
+                "}"
+                "QPushButton:pressed {"
+                "  background-color: #2b0e1d;"
+                "}"
+            );
+        } else if (settings.gameMode == GameMode::ClassicTetris) {
             m_btnModeToggle->setText("MODE: CLASSIC TETRIS");
             m_btnModeToggle->setStyleSheet(
                 "QPushButton {"
@@ -258,6 +236,48 @@ void MainMenuWidget::updateSettingsBadge(const GameSettings& settings) {
                 "}"
                 "QPushButton:pressed {"
                 "  background-color: #1c152a;"
+                "}"
+            );
+        } else if (settings.enableElements) {
+            m_btnModeToggle->setText("MODE: SANDTRIX (ELEMENTS: ON)");
+            m_btnModeToggle->setStyleSheet(
+                "QPushButton {"
+                "  background-color: #142834;"
+                "  color: #00d2d7;"
+                "  font-size: 12px;"
+                "  font-weight: 800;"
+                "  border: 1.5px solid #1f576e;"
+                "  border-radius: 8px;"
+                "  letter-spacing: 0.5px;"
+                "}"
+                "QPushButton:hover {"
+                "  background-color: #1a3749;"
+                "  border-color: #38b2ac;"
+                "  color: #81e6d9;"
+                "}"
+                "QPushButton:pressed {"
+                "  background-color: #0f1e27;"
+                "}"
+            );
+        } else {
+            m_btnModeToggle->setText("MODE: SANDTRIX (ELEMENTS: OFF)");
+            m_btnModeToggle->setStyleSheet(
+                "QPushButton {"
+                "  background-color: #172b22;"
+                "  color: #68c48a;"
+                "  font-size: 12px;"
+                "  font-weight: 800;"
+                "  border: 1.5px solid #285e43;"
+                "  border-radius: 8px;"
+                "  letter-spacing: 0.5px;"
+                "}"
+                "QPushButton:hover {"
+                "  background-color: #1f3b2e;"
+                "  border-color: #38a169;"
+                "  color: #a7f3d0;"
+                "}"
+                "QPushButton:pressed {"
+                "  background-color: #12211a;"
                 "}"
             );
         }
@@ -368,16 +388,38 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     auto* lblClassicDesc = new QLabel("  • Authentic traditional Tetris on a 10×17 mino grid (no sand physics)\n  • Solid rigid blocks: pieces stay locked without melting into sand\n  • Traditional full horizontal line clears (Single, Double, Triple, TETRIS!)", this);
     lblClassicDesc->setStyleSheet("color: #94a1b2; font-size: 10px; margin-left: 24px; line-height: 1.3;");
 
+    // Mystery Mode Radio Button
+    m_rbMystery = new QRadioButton("Mystery Mode (Shape-Shifting & Chaos)", this);
+    m_rbMystery->setCursor(Qt::PointingHandCursor);
+    m_rbMystery->setStyleSheet(
+        "QRadioButton {"
+        "  color: #f687b3;"
+        "  font-size: 13px;"
+        "  font-weight: 800;"
+        "}"
+        "QRadioButton::indicator {"
+        "  width: 18px;"
+        "  height: 18px;"
+        "}"
+    );
+
+    auto* lblMysteryDesc = new QLabel("  • Mid-air shape-shifting & piece mutations: blocks transform while falling!\n  • Wildcard TNT bomb pieces, mini-dots, plus pieces, earthquakes & wind gusts!\n  • Unpredictable, wacky, and hilarious sand physics gameplay", this);
+    lblMysteryDesc->setStyleSheet("color: #94a1b2; font-size: 10px; margin-left: 24px; line-height: 1.3;");
+
     modeLayout->addWidget(m_rbSandtrix);
     modeLayout->addWidget(lblSandtrixDesc);
     modeLayout->addWidget(m_chkElements);
     modeLayout->addSpacing(4);
     modeLayout->addWidget(m_rbClassicTetris);
     modeLayout->addWidget(lblClassicDesc);
+    modeLayout->addSpacing(4);
+    modeLayout->addWidget(m_rbMystery);
+    modeLayout->addWidget(lblMysteryDesc);
     formLayout->addWidget(modeBox);
 
     connect(m_rbSandtrix, &QRadioButton::toggled, this, &SettingsWidget::onModeChanged);
     connect(m_rbClassicTetris, &QRadioButton::toggled, this, &SettingsWidget::onModeChanged);
+    connect(m_rbMystery, &QRadioButton::toggled, this, &SettingsWidget::onModeChanged);
     connect(m_chkElements, &QCheckBox::toggled, this, &SettingsWidget::updateModeLabels);
 
     // 2. STARTING SPEED / LEVEL (1 - 10)
@@ -730,11 +772,11 @@ void SettingsWidget::updateSoundWidgets() {
 
 void SettingsWidget::loadSettings(const GameSettings& settings) {
     m_spinLevel->setValue(settings.startingLevel);
-    bool isClassic = (settings.gameMode == GameMode::ClassicTetris);
-    m_rbSandtrix->setChecked(!isClassic);
-    m_rbClassicTetris->setChecked(isClassic);
+    m_rbSandtrix->setChecked(settings.gameMode == GameMode::Sandtrix);
+    m_rbClassicTetris->setChecked(settings.gameMode == GameMode::ClassicTetris);
+    m_rbMystery->setChecked(settings.gameMode == GameMode::Mystery);
     m_chkElements->setChecked(settings.enableElements);
-    m_chkElements->setEnabled(!isClassic);
+    m_chkElements->setEnabled(settings.gameMode == GameMode::Sandtrix);
     m_chkFullscreen->setChecked(settings.fullscreen);
     m_chkSound->setChecked(settings.soundEnabled);
     m_sliderVolume->setValue(static_cast<int>(settings.volume * 100.0f));
@@ -747,7 +789,13 @@ GameSettings SettingsWidget::getSettings() const {
     GameSettings s;
     s.paletteIndex = 0;
     s.startingLevel = m_spinLevel->value();
-    s.gameMode = m_rbClassicTetris->isChecked() ? GameMode::ClassicTetris : GameMode::Sandtrix;
+    if (m_rbClassicTetris->isChecked()) {
+        s.gameMode = GameMode::ClassicTetris;
+    } else if (m_rbMystery->isChecked()) {
+        s.gameMode = GameMode::Mystery;
+    } else {
+        s.gameMode = GameMode::Sandtrix;
+    }
     s.enableElements = (s.gameMode == GameMode::Sandtrix) && m_chkElements->isChecked();
     s.fullscreen = m_chkFullscreen->isChecked();
     s.soundEnabled = m_chkSound->isChecked();
@@ -881,7 +929,13 @@ HowToPlayWidget::HowToPlayWidget(QWidget* parent)
             "• Complete full horizontal rows to score Single, Double, Triple, and 4-line TETRIS clears!",
             "#b794f4");
 
-    addCard("6. Complete Keyboard Controls",
+    addCard("6. Mystery Mode (Shape-Shifting & Chaos)",
+            "• Mid-Air Shape-Shifting: Falling pieces spontaneously mutate mid-flight into different tetrominoes, tiny 1x1 dots, or 5-block plus crosses!\n"
+            "• TNT Bomb Blocks: Flashing explosive blocks that blast an impact crater through resting sand heaps.\n"
+            "• Wacky Calamities: Earthquakes that shift the dunes, sudden gusts of wind, and temporary inverted controls!",
+            "#f687b3");
+
+    addCard("7. Complete Keyboard Controls",
             "• [Left / Right] or [A / D] : Move Left / Right (DAS & ARR enabled)\n"
             "• [Up] or [W / X] : Rotate Clockwise\n"
             "• [Z / Ctrl] : Rotate Counter-Clockwise\n"

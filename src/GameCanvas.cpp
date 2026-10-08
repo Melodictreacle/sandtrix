@@ -16,7 +16,8 @@ GameCanvas::GameCanvas(AudioManager* audio, const ColorPalette& initialPalette, 
       m_arrTimer(0),
       m_activeDir(0),
       m_pulseTime(0.0),
-      m_gameOverSoundPlayed(false)
+      m_gameOverSoundPlayed(false),
+      m_confusionTimer(0)
 {
     setFixedSize(CANVAS_WIDTH, CANVAS_HEIGHT);
     setFocusPolicy(Qt::StrongFocus);
@@ -40,6 +41,7 @@ void GameCanvas::applySettings(const GameSettings& settings) {
     m_engine.applySettings(settings, numColors);
     m_particles.clear();
     m_gameOverSoundPlayed = false;
+    m_confusionTimer = 0;
     update();
     emit stateChanged();
 }
@@ -48,6 +50,7 @@ void GameCanvas::restartGame() {
     m_engine.reset();
     m_particles.clear();
     m_gameOverSoundPlayed = false;
+    m_confusionTimer = 0;
     update();
     emit stateChanged();
 }
@@ -63,7 +66,8 @@ void GameCanvas::onGameLoop() {
             m_arrTimer += dt;
             if (m_arrTimer >= ARR_REPEAT_MS) {
                 m_arrTimer = 0;
-                if (m_engine.movePiece(m_activeDir * MINO_SIZE)) {
+                int dir = (m_confusionTimer > 0) ? -m_activeDir : m_activeDir;
+                if (m_engine.movePiece(dir * MINO_SIZE)) {
                     if (m_audio) m_audio->playMove();
                 }
             }
@@ -73,11 +77,47 @@ void GameCanvas::onGameLoop() {
     // Engine tick
     EngineTickEvent event = m_engine.tick(dt);
 
+    if (m_confusionTimer > 0) {
+        m_confusionTimer -= dt;
+    }
+
+    if (event.confusionTriggered) {
+        m_confusionTimer = 6000;
+        m_particles.addFloatingText(CANVAS_WIDTH / 2.0f - 85.0f, 160.0f, "CONTROLS INVERTED!", QColor(255, 80, 80), 16);
+        m_particles.triggerShake(5.0f);
+    }
+
+    if (event.shapeShifted) {
+        if (m_audio) m_audio->playMorph();
+        Tetromino* active = m_engine.getActivePiece();
+        int px = active ? (active->getX() * CELL_DISPLAY_SIZE + 20) : (CANVAS_WIDTH / 2);
+        int py = active ? (active->getY() * CELL_DISPLAY_SIZE + 10) : 180;
+        m_particles.addFloatingText(px - 50.0f, py - 20.0f, "SHAPE SHIFT!", QColor(255, 105, 180), 16);
+        m_particles.triggerShake(4.0f);
+    }
+
+    if (event.bombDetonated) {
+        if (m_audio) m_audio->playBoom();
+        m_particles.triggerShake(12.0f);
+        m_particles.addClearedSandSparks(event.bombCraterCoords, QColor(255, 100, 30));
+        m_particles.addFloatingText(event.bombX * CELL_DISPLAY_SIZE - 45.0f, event.bombY * CELL_DISPLAY_SIZE - 15.0f, "BOOM! -CRATER", QColor(255, 75, 40), 18);
+    }
+
+    if (event.earthquake) {
+        if (m_audio) m_audio->playDrop();
+        m_particles.triggerShake(9.0f);
+        m_particles.addFloatingText(CANVAS_WIDTH / 2.0f - 55.0f, 150.0f, "EARTHQUAKE!", QColor(245, 185, 35), 18);
+    }
+
+    if (event.windGust) {
+        m_particles.addFloatingText(CANVAS_WIDTH / 2.0f - 50.0f, 140.0f, (event.windDir > 0) ? "GUST! >>>" : "<<< GUST!", QColor(0, 210, 215), 15);
+    }
+
     if (event.landedWater) {
         if (m_audio) m_audio->playWaterSplash();
     } else if (event.landedAcid) {
         if (m_audio) m_audio->playAcidSizzle();
-    } else if (event.landed) {
+    } else if (event.landed && !event.bombDetonated) {
         if (m_audio) m_audio->playLock();
     }
 
@@ -139,6 +179,14 @@ void GameCanvas::onGameLoop() {
                     QString("COMBO x%1! +%2").arg(event.combo).arg(event.points),
                     col, 15
                 );
+                if (m_engine.isMystery()) {
+                    static const char* hypeQuotes[] = { "ACCIDENTAL GENIUS!", "CALCULATED!", "WAIT, THAT WORKED?!", "BIG BRAIN!" };
+                    static int hIdx = 0;
+                    m_particles.addFloatingText(
+                        CANVAS_WIDTH / 2.0f - 65.0f, static_cast<float>(midY + 22),
+                        hypeQuotes[hIdx++ % 4], QColor(255, 215, 0), 13
+                    );
+                }
             } else {
                 m_particles.addFloatingText(
                     CANVAS_WIDTH / 2.0f - 35.0f, static_cast<float>(midY),
@@ -187,13 +235,16 @@ void GameCanvas::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
+    bool inverted = (m_confusionTimer > 0);
+
     if (key == Qt::Key_Left || key == Qt::Key_A) {
         if (!m_keyLeftHeld) {
             m_keyLeftHeld = true;
             m_activeDir = -1;
             m_dasTimer = 0;
             m_arrTimer = 0;
-            if (m_engine.movePiece(-MINO_SIZE)) {
+            int dir = inverted ? MINO_SIZE : -MINO_SIZE;
+            if (m_engine.movePiece(dir)) {
                 if (m_audio) m_audio->playMove();
             }
         }
@@ -203,16 +254,19 @@ void GameCanvas::keyPressEvent(QKeyEvent* event) {
             m_activeDir = 1;
             m_dasTimer = 0;
             m_arrTimer = 0;
-            if (m_engine.movePiece(MINO_SIZE)) {
+            int dir = inverted ? -MINO_SIZE : MINO_SIZE;
+            if (m_engine.movePiece(dir)) {
                 if (m_audio) m_audio->playMove();
             }
         }
     } else if (key == Qt::Key_Up || key == Qt::Key_W || key == Qt::Key_X) {
-        if (m_engine.rotatePiece(1)) {
+        int rotDir = inverted ? -1 : 1;
+        if (m_engine.rotatePiece(rotDir)) {
             if (m_audio) m_audio->playRotate();
         }
     } else if (key == Qt::Key_Z || key == Qt::Key_Control) {
-        if (m_engine.rotatePiece(-1)) {
+        int rotDir = inverted ? 1 : -1;
+        if (m_engine.rotatePiece(rotDir)) {
             if (m_audio) m_audio->playRotate();
         }
     } else if (key == Qt::Key_Down || key == Qt::Key_S) {
@@ -222,6 +276,7 @@ void GameCanvas::keyPressEvent(QKeyEvent* event) {
         std::vector<std::pair<int, int>> impactCoords;
         bool wasWater = (m_engine.getActivePiece() && m_engine.getActivePiece()->isWater());
         bool wasAcid = (m_engine.getActivePiece() && m_engine.getActivePiece()->isAcid());
+        bool wasBomb = (m_engine.getActivePiece() && m_engine.getActivePiece()->isBomb());
 
         if (m_engine.hardDrop(lx, ly, impactCoords)) {
             if (wasWater) {
@@ -229,6 +284,8 @@ void GameCanvas::keyPressEvent(QKeyEvent* event) {
                 m_particles.addWaterSplash(lx * CELL_DISPLAY_SIZE + 20, ly * CELL_DISPLAY_SIZE, 35);
             } else if (wasAcid) {
                 if (m_audio) m_audio->playAcidSizzle();
+            } else if (wasBomb) {
+                // Bomb detonation already triggered inside lockActivePiece
             } else {
                 if (m_audio) m_audio->playDrop();
                 if (!impactCoords.empty()) {
@@ -237,6 +294,12 @@ void GameCanvas::keyPressEvent(QKeyEvent* event) {
                 }
             }
             m_particles.triggerShake(4.0f);
+
+            if (m_engine.isMystery()) {
+                static const char* dropQuotes[] = { "SLAM DUNK!", "FULL SEND!", "SEND IT!", "NO FEAR!" };
+                static int qIdx = 0;
+                m_particles.addFloatingText(lx * CELL_DISPLAY_SIZE - 20, ly * CELL_DISPLAY_SIZE - 25, dropQuotes[qIdx++ % 4], QColor(255, 180, 50), 14);
+            }
         }
     } else if (key == Qt::Key_C || key == Qt::Key_Shift) {
         if (m_engine.holdCurrentPiece()) {
@@ -284,6 +347,7 @@ void GameCanvas::paintEvent(QPaintEvent*) {
     }
     uint32_t waterRgb = getWaterColor().rgb();
     uint32_t acidRgb = getAcidColor().rgb();
+    uint32_t bombRgb = getBombColor().rgb();
 
     for (int i = 0; i < BOARD_WIDTH * BOARD_HEIGHT; ++i) {
         uint8_t c = grid[i];
@@ -291,6 +355,8 @@ void GameCanvas::paintEvent(QPaintEvent*) {
             bits[i] = waterRgb;
         } else if (c == MATERIAL_ACID) {
             bits[i] = acidRgb;
+        } else if (c == MATERIAL_BOMB) {
+            bits[i] = bombRgb;
         } else {
             bits[i] = paletteRgb[c % numPalColors];
         }
@@ -319,6 +385,14 @@ void GameCanvas::paintEvent(QPaintEvent*) {
     painter.setBrush(Qt::NoBrush);
     painter.drawRect(0, 0, CANVAS_WIDTH - 1, CANVAS_HEIGHT - 1);
 
+    // Inverted controls warning banner
+    if (m_confusionTimer > 0) {
+        painter.setFont(QFont("Segoe UI", 9, QFont::Bold));
+        painter.setPen(QColor(255, 90, 90));
+        int sec = (m_confusionTimer + 999) / 1000;
+        painter.drawText(QRect(0, 6, CANVAS_WIDTH, 22), Qt::AlignCenter, QString("CONTROLS INVERTED (%1s)").arg(sec));
+    }
+
     // 3. Danger Ceiling Line
     int dangerY = (m_engine.isClassicTetris() ? (4 + MINO_SIZE) : DANGER_ROW) * CELL_DISPLAY_SIZE;
     int pulseAlpha = static_cast<int>(120 + 80 * std::sin(m_pulseTime * 3.0));
@@ -333,6 +407,7 @@ void GameCanvas::paintEvent(QPaintEvent*) {
             QColor ghostCol;
             if (active->isWater()) ghostCol = getWaterColor();
             else if (active->isAcid()) ghostCol = getAcidColor();
+            else if (active->isBomb()) ghostCol = getBombColor();
             else ghostCol = m_palette.colors[active->getColorIdx() % numPalColors];
 
             ghostCol.setAlpha(65);
@@ -360,7 +435,10 @@ void GameCanvas::paintEvent(QPaintEvent*) {
         QColor activeCol;
         if (active->isWater()) activeCol = getWaterColor();
         else if (active->isAcid()) activeCol = getAcidColor();
-        else activeCol = m_palette.colors[active->getColorIdx() % numPalColors];
+        else if (active->isBomb()) {
+            int flash = static_cast<int>(m_pulseTime * 8) % 2;
+            activeCol = (flash == 0) ? getBombColor() : QColor(255, 180, 30);
+        } else activeCol = m_palette.colors[active->getColorIdx() % numPalColors];
 
         painter.setPen(Qt::NoPen);
         painter.setBrush(activeCol);

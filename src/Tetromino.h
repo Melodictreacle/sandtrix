@@ -26,7 +26,9 @@ public:
 
     bool isWater() const { return m_colorIdx == MATERIAL_WATER; }
     bool isAcid() const { return m_colorIdx == MATERIAL_ACID; }
+    bool isBomb() const { return m_colorIdx == MATERIAL_BOMB; }
     QString getElementName() const;
+    void setColorIdx(uint8_t c) { m_colorIdx = c; }
 
     int getMaskWidth() const { return m_maskWidth; }
     int getMaskHeight() const { return m_maskHeight; }
@@ -35,6 +37,7 @@ public:
     bool collides(const std::vector<uint8_t>& grid, int offsetX = 0, int offsetY = 0, int testRotation = -1) const;
     bool tryMove(int dx, int dy, const std::vector<uint8_t>& grid);
     bool tryRotate(int direction, const std::vector<uint8_t>& grid);
+    bool morphTo(char newShape, const std::vector<uint8_t>& grid);
     int getGhostY(const std::vector<uint8_t>& grid, int step = 1) const;
     std::vector<GrainCoord> getOccupiedGrains() const;
 
@@ -55,10 +58,12 @@ private:
 
 class BagRandomizer {
 public:
-    explicit BagRandomizer(int numColors = 4, bool enableElements = true);
+    explicit BagRandomizer(int numColors = 4, bool enableElements = true, bool isMystery = false);
     void setNumColors(int numColors) { m_numColors = numColors; }
     void setEnableElements(bool enable) { m_enableElements = enable; }
     bool getEnableElements() const { return m_enableElements; }
+    void setMysteryMode(bool isMystery) { m_isMystery = isMystery; }
+    bool isMysteryMode() const { return m_isMystery; }
 
     std::unique_ptr<Tetromino> nextPiece();
     std::vector<std::unique_ptr<Tetromino>> peekNext(int count);
@@ -69,6 +74,7 @@ private:
 
     int m_numColors;
     bool m_enableElements;
+    bool m_isMystery;
     std::vector<char> m_bag;
     int m_piecesSpawned;
 };

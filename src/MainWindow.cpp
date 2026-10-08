@@ -4,17 +4,26 @@
 #include <QFrame>
 #include <QLabel>
 #include <QTimer>
+#include <QShortcut>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
       m_canvas(nullptr)
 {
     setWindowTitle("SANDTRIX - Sand Tetris for Qt");
+    setWindowFlags(Qt::Window | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint);
     initStackedViews();
 
     auto* timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &MainWindow::syncUI);
     timer->start(30);
+
+    // Global keyboard shortcuts for Fullscreen toggle:
+    auto* shortcutF11 = new QShortcut(QKeySequence(Qt::Key_F11), this);
+    connect(shortcutF11, &QShortcut::activated, this, &MainWindow::toggleFullScreen);
+
+    auto* shortcutAltEnter = new QShortcut(QKeySequence(Qt::ALT | Qt::Key_Return), this);
+    connect(shortcutAltEnter, &QShortcut::activated, this, &MainWindow::toggleFullScreen);
 }
 
 void MainWindow::initStackedViews() {
@@ -54,6 +63,7 @@ void MainWindow::initStackedViews() {
     connect(m_mainMenu, &MainMenuWidget::settingsClicked, this, &MainWindow::onOpenSettings);
     connect(m_mainMenu, &MainMenuWidget::howToPlayClicked, this, &MainWindow::onOpenHowToPlay);
     connect(m_mainMenu, &MainMenuWidget::exitClicked, this, &MainWindow::close);
+    connect(m_mainMenu, &MainMenuWidget::modeToggled, this, &MainWindow::onToggleMode);
     m_stack->addWidget(m_mainMenu);
 
     // 1: Settings Screen
@@ -72,94 +82,159 @@ void MainWindow::initStackedViews() {
     m_stack->addWidget(m_gameScreen);
 
     setCentralWidget(m_stack);
-    setFixedSize(sizeHint());
+    switchToScreen(m_mainMenu);
+}
+
+void MainWindow::switchToScreen(QWidget* screen) {
+    if (!screen) return;
+    m_stack->setCurrentWidget(screen);
+    QSize target = screen->sizeHint();
+    if (target.width() < 420) target.setWidth(420);
+    if (target.height() < 460) target.setHeight(460);
+
+    setMinimumSize(target);
+    setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+
+    if (!isFullScreen() && !isMaximized()) {
+        resize(target);
+    }
 }
 
 QWidget* MainWindow::createGameScreen() {
-    auto* gameContainer = new QWidget(this);
+    auto* outerScreen = new QWidget(this);
+    auto* outerLayout = new QVBoxLayout(outerScreen);
+    outerLayout->setAlignment(Qt::AlignCenter);
+    outerLayout->setContentsMargins(0, 0, 0, 0);
+
+    auto* gameContainer = new QWidget(outerScreen);
     auto* mainLayout = new QHBoxLayout(gameContainer);
-    mainLayout->setContentsMargins(18, 18, 18, 18);
-    mainLayout->setSpacing(16);
+    mainLayout->setContentsMargins(28, 20, 28, 20);
+    mainLayout->setSpacing(32); // Spacious 32px gap between panels and the main game box!
 
     const auto& defaultPalette = getGamePalette();
 
-    // ----------------- LEFT PANEL -----------------
-    auto* leftPanel = new QVBoxLayout();
-    leftPanel->setSpacing(10);
-    leftPanel->setAlignment(Qt::AlignTop);
+    // ----------------- LEFT PANEL (190px width) -----------------
+    auto* leftContainer = new QWidget(gameContainer);
+    leftContainer->setFixedWidth(190);
+    auto* leftLayout = new QVBoxLayout(leftContainer);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setSpacing(10);
+    leftLayout->setAlignment(Qt::AlignTop);
 
     m_holdPreview = new PiecePreviewWidget("HOLD", defaultPalette, 84, this);
-    leftPanel->addWidget(m_holdPreview);
+    leftLayout->addWidget(m_holdPreview, 0, Qt::AlignCenter);
 
     m_cardScore = new StatCard("Score", "0", "#327DEB", this);
     m_cardHighScore = new StatCard("High Score", "0", "#F5B923", this);
     m_cardLevel = new StatCard("Level", "1", "#28B964", this);
     m_cardBands = new StatCard("Lines Cleared", "0", "#EB4B4B", this);
 
-    leftPanel->addWidget(m_cardScore);
-    leftPanel->addWidget(m_cardHighScore);
-    leftPanel->addWidget(m_cardLevel);
-    leftPanel->addWidget(m_cardBands);
+    leftLayout->addWidget(m_cardScore);
+    leftLayout->addWidget(m_cardHighScore);
+    leftLayout->addWidget(m_cardLevel);
+    leftLayout->addWidget(m_cardBands);
 
     m_comboBadge = new ComboBadge(this);
-    leftPanel->addWidget(m_comboBadge);
-    leftPanel->addStretch();
+    leftLayout->addWidget(m_comboBadge);
+    leftLayout->addStretch();
 
-    // ----------------- CENTER CANVAS -----------------
-    auto* centerPanel = new QVBoxLayout();
-    centerPanel->setAlignment(Qt::AlignCenter);
+    // ----------------- CENTER CANVAS: MAIN GAME BOX (408px width) -----------------
+    auto* centerContainer = new QWidget(gameContainer);
+    centerContainer->setFixedWidth(408);
+    auto* centerLayout = new QVBoxLayout(centerContainer);
+    centerLayout->setContentsMargins(0, 0, 0, 0);
+    centerLayout->setAlignment(Qt::AlignCenter);
 
-    m_canvas = new GameCanvas(&m_audio, defaultPalette, this);
-    centerPanel->addWidget(m_canvas);
+    auto* canvasFrame = new QFrame(centerContainer);
+    canvasFrame->setObjectName("canvasFrame");
+    canvasFrame->setStyleSheet(
+        "QFrame#canvasFrame {"
+        "  background-color: #0d1017;"
+        "  border: 2px solid #283248;"
+        "  border-radius: 8px;"
+        "}"
+    );
+    auto* canvasFrameLayout = new QVBoxLayout(canvasFrame);
+    canvasFrameLayout->setContentsMargins(2, 2, 2, 2);
+    canvasFrameLayout->setSpacing(0);
+    canvasFrameLayout->setAlignment(Qt::AlignCenter);
 
-    // ----------------- RIGHT PANEL -----------------
-    auto* rightPanel = new QVBoxLayout();
-    rightPanel->setSpacing(10);
-    rightPanel->setAlignment(Qt::AlignTop);
+    m_canvas = new GameCanvas(&m_audio, defaultPalette, canvasFrame);
+    canvasFrameLayout->addWidget(m_canvas);
+    centerLayout->addWidget(canvasFrame);
 
-    auto* lblNext = new QLabel("NEXT PIECES", this);
-    lblNext->setStyleSheet("color: #94a1b2; font-size: 11px; font-weight: bold; letter-spacing: 1px;");
-    rightPanel->addWidget(lblNext);
+    // ----------------- RIGHT PANEL (200px width) -----------------
+    auto* rightContainer = new QWidget(gameContainer);
+    rightContainer->setFixedWidth(200);
+    auto* rightLayout = new QVBoxLayout(rightContainer);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(10);
+    rightLayout->setAlignment(Qt::AlignTop);
 
-    for (int i = 0; i < 3; ++i) {
-        auto* prev = new PiecePreviewWidget(QString("#%1").arg(i + 1), defaultPalette, 72, this);
-        m_nextPreviews.push_back(prev);
-        rightPanel->addWidget(prev);
-    }
-
-    // Locked In-Game Match Info Frame (No Mid-Game Modification!)
-    auto* optionsFrame = new QFrame(this);
-    optionsFrame->setStyleSheet(
-        "QFrame {"
+    // 1. Next Pieces Box
+    auto* nextFrame = new QFrame(rightContainer);
+    nextFrame->setObjectName("nextFrame");
+    nextFrame->setStyleSheet(
+        "QFrame#nextFrame {"
         "  background-color: #161b26;"
         "  border: 1px solid #283248;"
         "  border-radius: 8px;"
-        "  padding: 6px;"
+        "  padding: 4px;"
+        "}"
+    );
+    auto* nextLayout = new QVBoxLayout(nextFrame);
+    nextLayout->setContentsMargins(6, 6, 6, 6);
+    nextLayout->setSpacing(6);
+    nextLayout->setAlignment(Qt::AlignCenter);
+
+    auto* lblNext = new QLabel("NEXT PIECES", nextFrame);
+    lblNext->setStyleSheet("color: #94a1b2; font-size: 10px; font-weight: bold; letter-spacing: 1px;");
+    lblNext->setAlignment(Qt::AlignCenter);
+    nextLayout->addWidget(lblNext);
+
+    for (int i = 0; i < 3; ++i) {
+        auto* prev = new PiecePreviewWidget(QString("#%1").arg(i + 1), defaultPalette, 62, this);
+        m_nextPreviews.push_back(prev);
+        nextLayout->addWidget(prev, 0, Qt::AlignCenter);
+    }
+    rightLayout->addWidget(nextFrame);
+
+    // 2. In-Game Settings Box
+    auto* optionsFrame = new QFrame(rightContainer);
+    optionsFrame->setObjectName("optionsFrame");
+    optionsFrame->setStyleSheet(
+        "QFrame#optionsFrame {"
+        "  background-color: #161b26;"
+        "  border: 1px solid #283248;"
+        "  border-radius: 8px;"
+        "  padding: 4px;"
         "}"
     );
     auto* optionsLayout = new QVBoxLayout(optionsFrame);
-    optionsLayout->setContentsMargins(8, 8, 8, 8);
+    optionsLayout->setContentsMargins(8, 6, 8, 6);
     optionsLayout->setSpacing(6);
 
-    auto* lblLockedHeader = new QLabel("RUN SETTINGS [LOCKED]", this);
+    auto* lblLockedHeader = new QLabel("RUN SETTINGS", optionsFrame);
     lblLockedHeader->setStyleSheet("color: #94a1b2; font-size: 9px; font-weight: bold; letter-spacing: 1px;");
+    lblLockedHeader->setAlignment(Qt::AlignCenter);
     optionsLayout->addWidget(lblLockedHeader);
 
-    m_lblLockedElements = new QLabel("Elements: ON | Lvl 1", this);
+    m_lblLockedElements = new QLabel("Elements: ON | Lvl 1", optionsFrame);
     m_lblLockedElements->setStyleSheet("color: #68c48a; font-size: 11px; font-weight: bold;");
+    m_lblLockedElements->setAlignment(Qt::AlignCenter);
     optionsLayout->addWidget(m_lblLockedElements);
 
     auto* btnRow = new QHBoxLayout();
     btnRow->setSpacing(6);
 
-    m_btnSound = new QPushButton("🔊 Sound", this);
+    m_btnSound = new QPushButton("🔊 Sound", optionsFrame);
     m_btnSound->setStyleSheet(
         "QPushButton {"
         "  background-color: #242c3d;"
         "  color: #f7fafc;"
         "  border: 1px solid #37435f;"
         "  border-radius: 6px;"
-        "  padding: 6px 10px;"
+        "  padding: 6px 8px;"
         "  font-weight: bold;"
         "  font-size: 11px;"
         "}"
@@ -175,14 +250,14 @@ QWidget* MainWindow::createGameScreen() {
     connect(m_btnSound, &QPushButton::clicked, this, &MainWindow::onToggleSound);
     btnRow->addWidget(m_btnSound);
 
-    m_btnRestart = new QPushButton("🔄 Restart", this);
+    m_btnRestart = new QPushButton("🔄 Restart", optionsFrame);
     m_btnRestart->setStyleSheet(
         "QPushButton {"
         "  background-color: #242c3d;"
         "  color: #f7fafc;"
         "  border: 1px solid #37435f;"
         "  border-radius: 6px;"
-        "  padding: 6px 10px;"
+        "  padding: 6px 8px;"
         "  font-weight: bold;"
         "  font-size: 11px;"
         "}"
@@ -200,7 +275,7 @@ QWidget* MainWindow::createGameScreen() {
 
     optionsLayout->addLayout(btnRow);
 
-    m_btnMenu = new QPushButton("🏠 Main Menu", this);
+    m_btnMenu = new QPushButton("🏠 Main Menu", optionsFrame);
     m_btnMenu->setStyleSheet(
         "QPushButton {"
         "  background-color: #2b364c;"
@@ -223,18 +298,43 @@ QWidget* MainWindow::createGameScreen() {
     connect(m_btnMenu, &QPushButton::clicked, this, &MainWindow::onReturnToMenu);
     optionsLayout->addWidget(m_btnMenu);
 
-    rightPanel->addWidget(optionsFrame);
+    rightLayout->addWidget(optionsFrame);
 
-    m_controlsGuide = new ControlsGuideWidget(this);
-    rightPanel->addWidget(m_controlsGuide);
-    rightPanel->addStretch();
+    // 3. Controls Box
+    m_controlsGuide = new ControlsGuideWidget(rightContainer);
+    rightLayout->addWidget(m_controlsGuide);
+    rightLayout->addStretch();
 
-    // Assemble game layout
-    mainLayout->addLayout(leftPanel);
-    mainLayout->addLayout(centerPanel);
-    mainLayout->addLayout(rightPanel);
+    // Assemble game layout with generous side-panel separation
+    mainLayout->addWidget(leftContainer);
+    mainLayout->addWidget(centerContainer);
+    mainLayout->addWidget(rightContainer);
 
-    return gameContainer;
+    gameContainer->setFixedSize(918, 748);
+    outerLayout->addWidget(gameContainer, 0, Qt::AlignCenter);
+    return outerScreen;
+}
+
+void MainWindow::toggleFullScreen() {
+    if (isFullScreen()) {
+        m_settings.fullscreen = false;
+        showNormal();
+        QWidget* cur = m_stack->currentWidget();
+        QSize target = cur ? cur->sizeHint() : sizeHint();
+        if (target.width() < 420) target.setWidth(420);
+        if (target.height() < 460) target.setHeight(460);
+        setMinimumSize(target);
+        setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+        resize(target);
+    } else {
+        m_settings.fullscreen = true;
+        setMinimumSize(0, 0);
+        setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+        showFullScreen();
+    }
+    if (m_settingsView) {
+        m_settingsView->loadSettings(m_settings);
+    }
 }
 
 void MainWindow::onStartGame() {
@@ -248,7 +348,13 @@ void MainWindow::onStartGame() {
     }
 
     // Update locked info badges
-    m_lblLockedElements->setText(QString("Elements: %1 | Lvl %2").arg(m_settings.enableElements ? "ON" : "OFF").arg(m_settings.startingLevel));
+    QString modeName;
+    if (m_settings.gameMode == GameMode::ClassicTetris) {
+        modeName = "🧱 Classic Tetris";
+    } else {
+        modeName = m_settings.enableElements ? "⏳ Sandtrix (🌊 Elements: ON)" : "⏳ Sandtrix (Elements: OFF)";
+    }
+    m_lblLockedElements->setText(QString("%1 | Lvl %2").arg(modeName).arg(m_settings.startingLevel));
 
     // Update audio
     m_audio.setMuted(!m_settings.soundEnabled);
@@ -256,20 +362,36 @@ void MainWindow::onStartGame() {
     m_btnSound->setText(m_settings.soundEnabled ? "🔊 Sound" : "🔇 Muted");
 
     // Switch to game screen
-    m_stack->setCurrentWidget(m_gameScreen);
+    switchToScreen(m_gameScreen);
     m_canvas->restartGame();
     m_canvas->setFocus();
-    setFixedSize(sizeHint());
 }
 
 void MainWindow::onOpenSettings() {
-    m_stack->setCurrentWidget(m_settingsView);
-    setFixedSize(sizeHint());
+    m_settingsView->loadSettings(m_settings);
+    switchToScreen(m_settingsView);
+}
+
+void MainWindow::onToggleMode() {
+    if (m_settings.gameMode == GameMode::Sandtrix) {
+        if (!m_settings.enableElements) {
+            m_settings.enableElements = true;
+        } else {
+            m_settings.gameMode = GameMode::ClassicTetris;
+            m_settings.enableElements = false;
+        }
+    } else {
+        m_settings.gameMode = GameMode::Sandtrix;
+        m_settings.enableElements = false;
+    }
+    m_mainMenu->updateSettingsBadge(m_settings);
+    if (m_settingsView) {
+        m_settingsView->loadSettings(m_settings);
+    }
 }
 
 void MainWindow::onOpenHowToPlay() {
-    m_stack->setCurrentWidget(m_howToPlayView);
-    setFixedSize(sizeHint());
+    switchToScreen(m_howToPlayView);
 }
 
 void MainWindow::onReturnToMenu() {
@@ -277,8 +399,7 @@ void MainWindow::onReturnToMenu() {
         m_canvas->getEngine().setPaused(true);
     }
     m_mainMenu->updateSettingsBadge(m_settings);
-    m_stack->setCurrentWidget(m_mainMenu);
-    setFixedSize(sizeHint());
+    switchToScreen(m_mainMenu);
 }
 
 void MainWindow::onSettingsChanged(const GameSettings& settings) {
@@ -286,6 +407,9 @@ void MainWindow::onSettingsChanged(const GameSettings& settings) {
     m_audio.setMuted(!settings.soundEnabled);
     m_audio.setVolume(settings.volume);
     m_mainMenu->updateSettingsBadge(m_settings);
+    if (settings.fullscreen != isFullScreen()) {
+        toggleFullScreen();
+    }
 }
 
 void MainWindow::syncUI() {

@@ -188,6 +188,7 @@ ControlsGuideWidget::ControlsGuideWidget(QWidget* parent)
         {"↓ / S", "Soft Drop"},
         {"SPACE", "Hard Drop"},
         {"C / Shift", "Hold Piece"},
+        {"F11", "Fullscreen"},
         {"P / Esc", "Pause"},
         {"R", "Restart"},
         {"M", "Mute Audio"}

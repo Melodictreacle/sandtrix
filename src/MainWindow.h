@@ -26,8 +26,11 @@ private slots:
     void onSettingsChanged(const GameSettings& settings);
     void onToggleSound();
     void onRestartGame();
+    void onToggleMode();
+    void toggleFullScreen();
 
 private:
+    void switchToScreen(QWidget* screen);
     void initStackedViews();
     QWidget* createGameScreen();
 

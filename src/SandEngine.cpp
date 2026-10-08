@@ -21,12 +21,19 @@ int getGravityInterval(int level) {
     int idx = std::max(1, std::min(10, level)) - 1;
     return intervals[idx];
 }
+
+int getClassicGravityInterval(int level) {
+    static const int intervals[] = { 500, 440, 380, 320, 260, 210, 160, 120, 90, 70 };
+    int idx = std::max(1, std::min(10, level)) - 1;
+    return intervals[idx];
+}
 } // namespace
 
-SandEngine::SandEngine(int numColors, bool enableElements, int startLevel)
+SandEngine::SandEngine(int numColors, bool enableElements, int startLevel, GameMode mode)
     : m_numColors(numColors),
       m_startLevel(startLevel),
-      m_enableElements(enableElements),
+      m_enableElements(enableElements && (mode == GameMode::Sandtrix)),
+      m_gameMode(mode),
       m_grid(BOARD_HEIGHT * BOARD_WIDTH, 0),
       m_score(0),
       m_highScore(0),
@@ -35,7 +42,7 @@ SandEngine::SandEngine(int numColors, bool enableElements, int startLevel)
       m_combo(0),
       m_gameOver(false),
       m_paused(false),
-      m_randomizer(numColors, enableElements),
+      m_randomizer(numColors, enableElements && (mode == GameMode::Sandtrix)),
       m_canHold(true),
       m_gravityTimer(0),
       m_lockTimer(0),
@@ -77,8 +84,15 @@ void SandEngine::setPaletteColorsCount(int numColors) {
 void SandEngine::applySettings(const GameSettings& settings, int numColors) {
     m_numColors = numColors;
     m_startLevel = settings.startingLevel;
-    m_enableElements = settings.enableElements;
+    m_gameMode = settings.gameMode;
+    m_enableElements = settings.enableElements && (settings.gameMode == GameMode::Sandtrix);
     reset();
+}
+
+int SandEngine::getActiveGhostY() const {
+    if (!m_activePiece) return 0;
+    int step = (m_gameMode == GameMode::ClassicTetris) ? MINO_SIZE : 1;
+    return m_activePiece->getGhostY(m_grid, step);
 }
 
 void SandEngine::reset() {
@@ -97,7 +111,7 @@ void SandEngine::reset() {
     m_isSandMoving = false;
     m_lastDropHadClear = false;
 
-    m_randomizer = BagRandomizer(m_numColors, m_enableElements);
+    m_randomizer = BagRandomizer(m_numColors, m_enableElements && (m_gameMode == GameMode::Sandtrix));
     m_nextQueue.clear();
     refillNextQueue();
     spawnPiece();
@@ -115,6 +129,9 @@ bool SandEngine::spawnPiece() {
     m_nextQueue.erase(m_nextQueue.begin());
     m_lockTimer = 0;
     m_gravityTimer = 0;
+
+    int startY = (m_gameMode == GameMode::ClassicTetris) ? 4 : 0;
+    m_activePiece->setY(startY);
 
     if (m_activePiece->collides(m_grid)) {
         m_gameOver = true;
@@ -134,6 +151,7 @@ bool SandEngine::holdCurrentPiece() {
 
     char shape = m_activePiece->getShape();
     uint8_t col = m_activePiece->getColorIdx();
+    int startY = (m_gameMode == GameMode::ClassicTetris) ? 4 : 0;
 
     if (!m_holdPiece) {
         m_holdPiece = std::make_unique<Tetromino>(shape, col);
@@ -144,6 +162,7 @@ bool SandEngine::holdCurrentPiece() {
 
         m_holdPiece = std::make_unique<Tetromino>(shape, col);
         m_activePiece = std::make_unique<Tetromino>(heldShape, heldCol);
+        m_activePiece->setY(startY);
     }
 
     m_canHold = false;
@@ -171,7 +190,7 @@ bool SandEngine::hardDrop(int& outX, int& outY, std::vector<std::pair<int, int>>
         return false;
     }
 
-    int ghostY = m_activePiece->getGhostY(m_grid);
+    int ghostY = getActiveGhostY();
     m_activePiece->setY(ghostY);
     outX = m_activePiece->getX();
     outY = ghostY;
@@ -204,10 +223,11 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
     m_activePiece.reset();
     m_canHold = true;
     m_lockTimer = 0;
-    m_isSandMoving = true;
+    m_isSandMoving = (m_gameMode == GameMode::Sandtrix);
 
     // Check danger ceiling breach
-    for (int r = 0; r < DANGER_ROW; ++r) {
+    int dangerLimit = (m_gameMode == GameMode::ClassicTetris) ? (4 + MINO_SIZE) : DANGER_ROW;
+    for (int r = 0; r < dangerLimit; ++r) {
         for (int c = 0; c < BOARD_WIDTH; ++c) {
             if (m_grid[r * BOARD_WIDTH + c] > 0) {
                 m_gameOver = true;
@@ -450,10 +470,125 @@ std::pair<int, int> SandEngine::checkLineClears(std::vector<std::pair<int, int>>
     return {0, 0};
 }
 
+int SandEngine::checkClassicLineClears(std::vector<std::pair<int, int>>& outCoords) {
+    outCoords.clear();
+    std::vector<int> fullRows;
+
+    // Check each of the 17 mino rows (row 0 to 16, where mino row R starts at y = 4 + R * 8)
+    for (int r = 0; r < 17; ++r) {
+        int yStart = 4 + r * MINO_SIZE;
+        bool full = true;
+        for (int x = 0; x < BOARD_WIDTH; ++x) {
+            if (m_grid[yStart * BOARD_WIDTH + x] == 0) {
+                full = false;
+                break;
+            }
+        }
+        if (full) {
+            fullRows.push_back(r);
+        }
+    }
+
+    if (fullRows.empty()) return 0;
+
+    // Record all grain coords of cleared rows for particles
+    for (int r : fullRows) {
+        int yStart = 4 + r * MINO_SIZE;
+        for (int gy = 0; gy < MINO_SIZE; ++gy) {
+            for (int x = 0; x < BOARD_WIDTH; ++x) {
+                outCoords.push_back({yStart + gy, x});
+            }
+        }
+    }
+
+    // Collapse board: for each row from bottom (16) up to 0, shift it down by the count of cleared rows below it
+    std::vector<uint8_t> newGrid(BOARD_HEIGHT * BOARD_WIDTH, 0);
+
+    for (int r = 16; r >= 0; --r) {
+        if (std::find(fullRows.begin(), fullRows.end(), r) != fullRows.end()) {
+            continue; // Skip cleared row
+        }
+
+        int drop = 0;
+        for (int cr : fullRows) {
+            if (cr > r) drop++;
+        }
+
+        int targetR = r + drop;
+        if (targetR < 17) {
+            int srcY = 4 + r * MINO_SIZE;
+            int dstY = 4 + targetR * MINO_SIZE;
+            for (int gy = 0; gy < MINO_SIZE; ++gy) {
+                for (int x = 0; x < BOARD_WIDTH; ++x) {
+                    newGrid[(dstY + gy) * BOARD_WIDTH + x] = m_grid[(srcY + gy) * BOARD_WIDTH + x];
+                }
+            }
+        }
+    }
+
+    m_grid = std::move(newGrid);
+    return static_cast<int>(fullRows.size());
+}
+
 EngineTickEvent SandEngine::tick(int dtMs) {
     EngineTickEvent event;
     if (m_gameOver || m_paused) return event;
 
+    if (m_gameMode == GameMode::ClassicTetris) {
+        // ==================== CLASSIC TETRIS MODE ====================
+        event.isClassicTetris = true;
+        m_isSandMoving = false;
+
+        // Check for complete horizontal row clears
+        std::vector<std::pair<int, int>> clearedCoords;
+        int linesCount = checkClassicLineClears(clearedCoords);
+
+        if (linesCount > 0) {
+            static const int lineScores[] = { 0, 100, 300, 500, 800 };
+            int basePoints = (linesCount <= 4) ? lineScores[linesCount] : (800 + (linesCount - 4) * 200);
+            int points = basePoints * m_level;
+
+            m_score += points;
+            if (m_score > m_highScore) {
+                m_highScore = m_score;
+                saveHighScore();
+            }
+
+            m_linesCleared += linesCount;
+            m_level = m_startLevel + (m_linesCleared / 10);
+            m_lastDropHadClear = true;
+
+            event.cleared = true;
+            event.classicLines = linesCount;
+            event.bands = linesCount;
+            event.coords = clearedCoords;
+            event.points = points;
+            event.combo = linesCount;
+        }
+
+        // Active piece gravity & lock (1 mino step = 8 grains)
+        if (m_activePiece) {
+            int gravityInterval = m_isSoftDropping ? 30 : getClassicGravityInterval(m_level);
+            m_gravityTimer += dtMs;
+
+            if (m_gravityTimer >= gravityInterval) {
+                m_gravityTimer = 0;
+                if (m_activePiece->tryMove(0, MINO_SIZE, m_grid)) {
+                    m_lockTimer = 0;
+                } else {
+                    m_lockTimer += gravityInterval;
+                    if (m_lockTimer >= LOCK_DELAY_MS || m_isSoftDropping) {
+                        lockActivePiece(&event);
+                        event.landed = true;
+                    }
+                }
+            }
+        }
+
+        return event;
+    }
+
+    // ==================== SANDTRIX MODE ====================
     // 1. Update sand cellular automata physics sub-steps
     bool anyMoved = false;
     for (int s = 0; s < PHYSICS_SUBSTEPS; ++s) {

@@ -87,47 +87,69 @@ void GameCanvas::onGameLoop() {
     }
 
     if (event.cleared) {
-        QColor col;
-        if (event.isTidalWave) {
-            col = getWaterColor();
-            m_particles.addWaterSplash(CANVAS_WIDTH / 2.0f, 300.0f, 60);
-            if (m_audio) m_audio->playWaterSplash();
+        if (event.isClassicTetris) {
+            static const char* classicNames[] = { "", "SINGLE!", "DOUBLE!", "TRIPLE!", "🔥 TETRIS!" };
+            int l = std::min(4, std::max(1, event.classicLines));
+            QString title = QString("%1 +%2").arg(classicNames[l]).arg(event.points);
+            QColor flashCol = (l == 4) ? QColor(245, 185, 35) : m_palette.colors[l % m_palette.colors.size()];
+
+            int midY = 200;
+            if (!event.coords.empty()) {
+                int sumY = 0;
+                for (const auto& pt : event.coords) sumY += pt.first;
+                midY = (sumY / static_cast<int>(event.coords.size())) * CELL_DISPLAY_SIZE;
+            }
+
+            m_particles.addFloatingText(
+                CANVAS_WIDTH / 2.0f - 55.0f, static_cast<float>(midY),
+                title, flashCol, (l == 4) ? 18 : 15
+            );
+            m_particles.addClearedSandSparks(event.coords, flashCol);
+            m_particles.triggerShake(3.0f + l * 2.0f);
+            if (m_audio) m_audio->playClear(l);
         } else {
-            col = m_palette.colors[event.color % m_palette.colors.size()];
+            QColor col;
+            if (event.isTidalWave) {
+                col = getWaterColor();
+                m_particles.addWaterSplash(CANVAS_WIDTH / 2.0f, 300.0f, 60);
+                if (m_audio) m_audio->playWaterSplash();
+            } else {
+                col = m_palette.colors[event.color % m_palette.colors.size()];
+            }
+
+            m_particles.addClearedSandSparks(event.coords, col);
+
+            // Calculate vertical center of cleared sand for floating text
+            int midY = 200;
+            if (!event.coords.empty()) {
+                int sumY = 0;
+                for (const auto& pt : event.coords) sumY += pt.first;
+                midY = (sumY / static_cast<int>(event.coords.size())) * CELL_DISPLAY_SIZE;
+            }
+
+            if (event.isTidalWave) {
+                m_particles.addFloatingText(
+                    CANVAS_WIDTH / 2.0f - 65.0f, static_cast<float>(midY),
+                    QString("🌊 TIDAL WAVE! +%1").arg(event.points),
+                    col, 16
+                );
+            } else if (event.combo > 1) {
+                m_particles.addFloatingText(
+                    CANVAS_WIDTH / 2.0f - 50.0f, static_cast<float>(midY),
+                    QString("COMBO x%1! +%2").arg(event.combo).arg(event.points),
+                    col, 15
+                );
+            } else {
+                m_particles.addFloatingText(
+                    CANVAS_WIDTH / 2.0f - 35.0f, static_cast<float>(midY),
+                    QString("+%1").arg(event.points),
+                    col, 14
+                );
+            }
+
+            m_particles.triggerShake(3.0f + std::min(10.0f, event.combo * 2.0f));
+            if (m_audio) m_audio->playClear(event.combo);
         }
-
-        m_particles.addClearedSandSparks(event.coords, col);
-
-        // Calculate vertical center of cleared sand for floating text
-        int midY = 200;
-        if (!event.coords.empty()) {
-            int sumY = 0;
-            for (const auto& pt : event.coords) sumY += pt.first;
-            midY = (sumY / static_cast<int>(event.coords.size())) * CELL_DISPLAY_SIZE;
-        }
-
-        if (event.isTidalWave) {
-            m_particles.addFloatingText(
-                CANVAS_WIDTH / 2.0f - 65.0f, static_cast<float>(midY),
-                QString("🌊 TIDAL WAVE! +%1").arg(event.points),
-                col, 16
-            );
-        } else if (event.combo > 1) {
-            m_particles.addFloatingText(
-                CANVAS_WIDTH / 2.0f - 50.0f, static_cast<float>(midY),
-                QString("COMBO x%1! +%2").arg(event.combo).arg(event.points),
-                col, 15
-            );
-        } else {
-            m_particles.addFloatingText(
-                CANVAS_WIDTH / 2.0f - 35.0f, static_cast<float>(midY),
-                QString("+%1").arg(event.points),
-                col, 14
-            );
-        }
-
-        m_particles.triggerShake(3.0f + std::min(10.0f, event.combo * 2.0f));
-        if (m_audio) m_audio->playClear(event.combo);
     }
 
     if (m_engine.isGameOver() && !m_gameOverSoundPlayed) {
@@ -277,13 +299,28 @@ void GameCanvas::paintEvent(QPaintEvent*) {
     // Draw scaled sand image
     painter.drawImage(QRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT), m_sandImage);
 
+    // In Classic Tetris mode: draw subtle 10x17 mino grid lines!
+    if (m_engine.isClassicTetris()) {
+        painter.setPen(QPen(QColor(255, 255, 255, 14), 1, Qt::DotLine));
+        // Vertical lines (every 8 grains = 40px)
+        for (int c = 1; c < 10; ++c) {
+            int px = c * MINO_SIZE * CELL_DISPLAY_SIZE;
+            painter.drawLine(px, 4 * CELL_DISPLAY_SIZE, px, CANVAS_HEIGHT);
+        }
+        // Horizontal lines (every 8 grains = 40px, starting at y = 4 grains = 20px)
+        for (int r = 0; r <= 17; ++r) {
+            int py = (4 + r * MINO_SIZE) * CELL_DISPLAY_SIZE;
+            painter.drawLine(0, py, CANVAS_WIDTH, py);
+        }
+    }
+
     // 2. Subtle border
     painter.setPen(QPen(QColor(42, 46, 63, 160), 1));
     painter.setBrush(Qt::NoBrush);
     painter.drawRect(0, 0, CANVAS_WIDTH - 1, CANVAS_HEIGHT - 1);
 
     // 3. Danger Ceiling Line
-    int dangerY = DANGER_ROW * CELL_DISPLAY_SIZE;
+    int dangerY = (m_engine.isClassicTetris() ? (4 + MINO_SIZE) : DANGER_ROW) * CELL_DISPLAY_SIZE;
     int pulseAlpha = static_cast<int>(120 + 80 * std::sin(m_pulseTime * 3.0));
     painter.setPen(QPen(QColor(255, 60, 60, pulseAlpha), 1, Qt::DashLine));
     painter.drawLine(0, dangerY, CANVAS_WIDTH, dangerY);
@@ -291,7 +328,7 @@ void GameCanvas::paintEvent(QPaintEvent*) {
     // 4. Ghost Piece
     Tetromino* active = m_engine.getActivePiece();
     if (active && !m_engine.isGameOver()) {
-        int ghostY = active->getGhostY(grid);
+        int ghostY = m_engine.getActiveGhostY();
         if (ghostY != active->getY()) {
             QColor ghostCol;
             if (active->isWater()) ghostCol = getWaterColor();

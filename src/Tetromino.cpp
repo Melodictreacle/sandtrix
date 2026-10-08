@@ -176,10 +176,10 @@ bool Tetromino::tryRotate(int direction, const std::vector<uint8_t>& grid) {
     return false;
 }
 
-int Tetromino::getGhostY(const std::vector<uint8_t>& grid) const {
+int Tetromino::getGhostY(const std::vector<uint8_t>& grid, int step) const {
     int ghostY = m_y;
-    while (!collides(grid, 0, ghostY - m_y + 1)) {
-        ghostY += 1;
+    while (!collides(grid, 0, ghostY - m_y + step)) {
+        ghostY += step;
     }
     return ghostY;
 }

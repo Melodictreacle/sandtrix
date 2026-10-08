@@ -4,6 +4,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QComboBox>
+#include <QRadioButton>
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QSlider>
@@ -23,9 +24,11 @@ signals:
     void settingsClicked();
     void howToPlayClicked();
     void exitClicked();
+    void modeToggled();
 
 private:
     QLabel* m_lblBadge;
+    QPushButton* m_btnModeToggle;
 };
 
 class SettingsWidget : public QWidget {
@@ -34,6 +37,7 @@ class SettingsWidget : public QWidget {
 public:
     explicit SettingsWidget(const GameSettings& currentSettings, QWidget* parent = nullptr);
     GameSettings getSettings() const;
+    void loadSettings(const GameSettings& settings);
 
 signals:
     void backClicked();
@@ -41,12 +45,32 @@ signals:
 
 private slots:
     void onSaveClicked();
+    void onLevelDown();
+    void onLevelUp();
+    void updateLevelDesc();
+    void onModeChanged();
 
 private:
+    void updateModeLabels();
+    void updateSoundWidgets();
+
+    // Level Stepper
     QSpinBox* m_spinLevel;
+    QPushButton* m_btnLevelDown;
+    QPushButton* m_btnLevelUp;
+    QLabel* m_lblLevelDesc;
+
+    // Game Mode Selection
+    QRadioButton* m_rbSandtrix;
+    QRadioButton* m_rbClassicTetris;
     QCheckBox* m_chkElements;
+
+    // Display & Audio
+    QCheckBox* m_chkFullscreen;
     QCheckBox* m_chkSound;
+    QLabel* m_lblSpeakerIcon;
     QSlider* m_sliderVolume;
+    QLabel* m_lblVolume;
 };
 
 class HowToPlayWidget : public QWidget {

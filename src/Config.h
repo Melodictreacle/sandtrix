@@ -66,11 +66,19 @@ inline const std::vector<ColorPalette>& getAvailablePalettes() {
     return palettes;
 }
 
+// Game Mode enumeration
+enum class GameMode {
+    Sandtrix = 0,       // ⏳ Sandtrix: Falling sand cellular automata, edge-to-edge flood-fill clears
+    ClassicTetris = 1   // 🧱 Classic Tetris: Solid rigid minos, traditional horizontal row clears
+};
+
 // Game Settings chosen before game start
 struct GameSettings {
     int paletteIndex = 0; // Single fixed palette
     int startingLevel = 1;
-    bool enableElements = true;
+    GameMode gameMode = GameMode::Sandtrix; // Default is Sandtrix!
+    bool enableElements = false;            // Elemental pieces (Water & Acid) in Sandtrix mode
     bool soundEnabled = true;
     float volume = 0.65f;
+    bool fullscreen = false;                // Default to windowed mode (user can maximize/minimize)
 };

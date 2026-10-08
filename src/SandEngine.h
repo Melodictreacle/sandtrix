@@ -21,11 +21,13 @@ struct EngineTickEvent {
     bool landedWater = false;
     bool landedAcid = false;
     std::vector<std::pair<int, int>> acidCorrodedCoords;
+    bool isClassicTetris = false;
+    int classicLines = 0;
 };
 
 class SandEngine {
 public:
-    explicit SandEngine(int numColors = 4, bool enableElements = true, int startLevel = 1);
+    explicit SandEngine(int numColors = 4, bool enableElements = false, int startLevel = 1, GameMode mode = GameMode::Sandtrix);
 
     void reset();
     void setPaletteColorsCount(int numColors);
@@ -46,6 +48,10 @@ public:
     Tetromino* getActivePiece() const { return m_activePiece.get(); }
     Tetromino* getHoldPiece() const { return m_holdPiece.get(); }
     const std::vector<std::unique_ptr<Tetromino>>& getNextQueue() const { return m_nextQueue; }
+    int getActiveGhostY() const;
+
+    bool isClassicTetris() const { return m_gameMode == GameMode::ClassicTetris; }
+    GameMode getGameMode() const { return m_gameMode; }
 
     int getScore() const { return m_score; }
     int getHighScore() const { return m_highScore; }
@@ -65,10 +71,12 @@ private:
     int loadHighScore();
     void saveHighScore();
     std::pair<int, int> checkLineClears(std::vector<std::pair<int, int>>& outCoords, uint8_t& outLastColor);
+    int checkClassicLineClears(std::vector<std::pair<int, int>>& outCoords);
 
     int m_numColors;
     int m_startLevel;
     bool m_enableElements;
+    GameMode m_gameMode;
     std::vector<uint8_t> m_grid; // size BOARD_HEIGHT * BOARD_WIDTH
 
     int m_score;

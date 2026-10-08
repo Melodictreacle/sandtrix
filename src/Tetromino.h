@@ -35,7 +35,7 @@ public:
     bool collides(const std::vector<uint8_t>& grid, int offsetX = 0, int offsetY = 0, int testRotation = -1) const;
     bool tryMove(int dx, int dy, const std::vector<uint8_t>& grid);
     bool tryRotate(int direction, const std::vector<uint8_t>& grid);
-    int getGhostY(const std::vector<uint8_t>& grid) const;
+    int getGhostY(const std::vector<uint8_t>& grid, int step = 1) const;
     std::vector<GrainCoord> getOccupiedGrains() const;
 
 private:

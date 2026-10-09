@@ -17,7 +17,7 @@ const std::vector<std::pair<int, int>> BFS_NEIGHBORS = {
 };
 
 int getGravityInterval(int level) {
-    static const int intervals[] = { 45, 40, 35, 30, 25, 20, 16, 13, 10, 8 };
+    static const int intervals[] = { 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 };
     int idx = std::max(1, std::min(10, level)) - 1;
     return intervals[idx];
 }
@@ -791,7 +791,7 @@ EngineTickEvent SandEngine::tick(int dtMs) {
                     m_lockTimer = 0;
                 } else {
                     m_lockTimer += gravityInterval;
-                    if (m_lockTimer >= LOCK_DELAY_MS || m_isSoftDropping) {
+                    if (m_lockTimer >= 450 || m_isSoftDropping) {
                         lockActivePiece(&event);
                         event.landed = true;
                     }
@@ -870,9 +870,12 @@ EngineTickEvent SandEngine::tick(int dtMs) {
     if (m_activePiece) {
         int gravityInterval = m_isSoftDropping ? SOFT_DROP_GRAVITY_MS : getGravityInterval(m_level);
         m_gravityTimer += dtMs;
+        int steps = 0;
+        const int maxSteps = 12;
 
-        if (m_gravityTimer >= gravityInterval) {
-            m_gravityTimer = 0;
+        while (m_gravityTimer >= gravityInterval && steps < maxSteps) {
+            m_gravityTimer -= gravityInterval;
+            steps++;
             if (m_activePiece->tryMove(0, 1, m_grid)) {
                 m_lockTimer = 0;
             } else {
@@ -881,7 +884,11 @@ EngineTickEvent SandEngine::tick(int dtMs) {
                     lockActivePiece(&event);
                     event.landed = true;
                 }
+                break;
             }
+        }
+        if (m_gravityTimer > gravityInterval * 3) {
+            m_gravityTimer = 0;
         }
     }
 

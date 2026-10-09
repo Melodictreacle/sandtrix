@@ -386,20 +386,24 @@ class SandEngine:
 
         # 3. Active Tetromino Gravity & Lock
         if self.active_piece:
-            # Determine gravity speed
-            current_interval = SOFT_DROP_GRAVITY_MS if self.is_soft_dropping else GRAVITY_INTERVALS.get(min(10, self.level), 8)
+            current_interval = SOFT_DROP_GRAVITY_MS if self.is_soft_dropping else GRAVITY_INTERVALS.get(min(10, self.level), 1)
             self.gravity_timer += dt_ms
+            max_steps = 12
+            steps = 0
 
-            if self.gravity_timer >= current_interval:
-                self.gravity_timer = 0
-                # Try moving down by 1 grain
+            while self.gravity_timer >= current_interval and steps < max_steps:
+                self.gravity_timer -= current_interval
+                steps += 1
                 if self.active_piece.try_move(0, 1, self.grid):
                     self.lock_timer = 0
                 else:
-                    # Piece is resting on sand or floor
                     self.lock_timer += current_interval
                     if self.lock_timer >= LOCK_DELAY_MS or self.is_soft_dropping:
                         self.lock_active_piece()
                         events['landed'] = True
+                    break
+
+            if self.gravity_timer > current_interval * 3:
+                self.gravity_timer = 0
 
         return events

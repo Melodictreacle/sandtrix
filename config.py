@@ -20,21 +20,21 @@ FRAME_TIME_MS = int(1000 / FRAME_RATE)  # ~16ms
 
 # Base gravity drop intervals per level (ms per 1-grain step)
 GRAVITY_INTERVALS = {
-    1: 45,
-    2: 40,
-    3: 35,
-    4: 30,
-    5: 25,
-    6: 20,
-    7: 16,
-    8: 13,
-    9: 10,
-    10: 8,
+    1: 26,
+    2: 22,
+    3: 18,
+    4: 15,
+    5: 12,
+    6: 10,
+    7: 8,
+    8: 6,
+    9: 5,
+    10: 4,
 }
-SOFT_DROP_GRAVITY_MS = 4   # Fast falling speed when holding Down/S
+SOFT_DROP_GRAVITY_MS = 3   # Fast falling speed when holding Down/S
 
 # Lock delay: time piece can rest on ground/sand before locking into sand
-LOCK_DELAY_MS = 450
+LOCK_DELAY_MS = 280
 
 # DAS (Delayed Auto Shift) and ARR (Auto Repeat Rate)
 DAS_DELAY_MS = 140

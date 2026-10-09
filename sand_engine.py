@@ -231,7 +231,7 @@ class SandEngine:
                     left_ok = (x > 0 and grid[y + 1, x - 1] == 0)
                     right_ok = (x < W - 1 and grid[y + 1, x + 1] == 0)
 
-                    if (left_ok or right_ok) and random.random() < 0.38:
+                    if (left_ok or right_ok) and random.random() < 0.08:
                         if left_ok and right_ok:
                             nx = x - 1 if random.random() < 0.5 else x + 1
                             grid[y + 1, nx] = color
@@ -366,7 +366,7 @@ class SandEngine:
                 self._save_high_score()
 
             self.lines_cleared += bands_count
-            self.level = 1 + (self.lines_cleared // 5)
+            self.level = 1 + (self.lines_cleared // 3)
             self.last_drop_had_clear = True
 
             events.update({

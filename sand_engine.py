@@ -227,23 +227,24 @@ class SandEngine:
                     grid[y, x] = 0
                     moved = True
                 else:
-                    # 2. Check diagonals
+                    # 2. Check diagonals with static friction/viscosity
                     left_ok = (x > 0 and grid[y + 1, x - 1] == 0)
                     right_ok = (x < W - 1 and grid[y + 1, x + 1] == 0)
 
-                    if left_ok and right_ok:
-                        nx = x - 1 if random.random() < 0.5 else x + 1
-                        grid[y + 1, nx] = color
-                        grid[y, x] = 0
-                        moved = True
-                    elif left_ok:
-                        grid[y + 1, x - 1] = color
-                        grid[y, x] = 0
-                        moved = True
-                    elif right_ok:
-                        grid[y + 1, x + 1] = color
-                        grid[y, x] = 0
-                        moved = True
+                    if (left_ok or right_ok) and random.random() < 0.38:
+                        if left_ok and right_ok:
+                            nx = x - 1 if random.random() < 0.5 else x + 1
+                            grid[y + 1, nx] = color
+                            grid[y, x] = 0
+                            moved = True
+                        elif left_ok:
+                            grid[y + 1, x - 1] = color
+                            grid[y, x] = 0
+                            moved = True
+                        elif right_ok:
+                            grid[y + 1, x + 1] = color
+                            grid[y, x] = 0
+                            moved = True
 
         return moved
 

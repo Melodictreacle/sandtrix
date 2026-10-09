@@ -187,6 +187,7 @@ class SandEngine:
         self.active_piece = None
         self.can_hold = True
         self.lock_timer = 0
+        self.is_soft_dropping = False
         self.is_sand_moving = True
 
         # Check if sand breached danger line at top

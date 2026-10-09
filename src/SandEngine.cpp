@@ -360,6 +360,7 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
     m_activePiece.reset();
     m_canHold = true;
     m_lockTimer = 0;
+    m_isSoftDropping = false;
     m_isSandMoving = !isClassicTetris();
 
     // Check danger ceiling breach
@@ -791,7 +792,7 @@ EngineTickEvent SandEngine::tick(int dtMs) {
                     m_lockTimer = 0;
                 } else {
                     m_lockTimer += gravityInterval;
-                    if (m_lockTimer >= 450 || m_isSoftDropping) {
+                    if (m_lockTimer >= 450) {
                         lockActivePiece(&event);
                         event.landed = true;
                     }

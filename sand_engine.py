@@ -257,7 +257,7 @@ class SandEngine:
         H = self.height
         W = self.width
         grid = self.grid
-        neighbors = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+        neighbors = [(-1, 0), (0, -1), (0, 1), (1, 0)]
 
         total_cleared_coords = []
         bands_count = 0

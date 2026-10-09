@@ -12,7 +12,7 @@ CANVAS_WIDTH = BOARD_WIDTH * CELL_DISPLAY_SIZE    # 400 pixels
 CANVAS_HEIGHT = BOARD_HEIGHT * CELL_DISPLAY_SIZE  # 700 pixels
 
 # Danger Ceiling (Row index above which sand triggers warning/game over)
-DANGER_ROW = 28           # Top 28 grains (approx 3.5 minos from top)
+DANGER_ROW = 16           # Top 16 grains (approx 2 minos from top)
 
 # Timings (milliseconds)
 FRAME_RATE = 60

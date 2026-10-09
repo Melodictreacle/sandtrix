@@ -386,7 +386,7 @@ class SandEngine:
 
         # 3. Active Tetromino Gravity & Lock
         if self.active_piece:
-            current_interval = SOFT_DROP_GRAVITY_MS if self.is_soft_dropping else GRAVITY_INTERVALS.get(min(10, self.level), 1)
+            current_interval = SOFT_DROP_GRAVITY_MS if self.is_soft_dropping else GRAVITY_INTERVALS.get(min(10, self.level), 8)
             self.gravity_timer += dt_ms
             max_steps = 12
             steps = 0

@@ -17,7 +17,7 @@ const std::vector<std::pair<int, int>> BFS_NEIGHBORS = {
 };
 
 int getGravityInterval(int level) {
-    static const int intervals[] = { 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 };
+    static const int intervals[] = { 45, 40, 35, 30, 25, 20, 16, 13, 10, 8 };
     int idx = std::max(1, std::min(10, level)) - 1;
     return intervals[idx];
 }

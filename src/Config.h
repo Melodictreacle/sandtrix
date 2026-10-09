@@ -19,8 +19,8 @@ constexpr int DANGER_ROW = 16;           // Top 16 grains (approx 2 minos from c
 // Physics & Timing
 constexpr int FRAME_RATE = 60;
 constexpr int FRAME_TIME_MS = 1000 / FRAME_RATE; // ~16 ms
-constexpr int SOFT_DROP_GRAVITY_MS = 2;
-constexpr int LOCK_DELAY_MS = 80;
+constexpr int SOFT_DROP_GRAVITY_MS = 4;
+constexpr int LOCK_DELAY_MS = 0;
 constexpr int DAS_DELAY_MS = 140;        // Delayed Auto Shift initial wait
 constexpr int ARR_REPEAT_MS = 35;        // Auto Repeat Rate interval
 constexpr int PHYSICS_SUBSTEPS = 2;      // Sub-steps per frame

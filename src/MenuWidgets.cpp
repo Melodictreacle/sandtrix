@@ -407,7 +407,7 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
     lblSandtrixDesc->setStyleSheet("color: #94a1b2; font-size: 10px;");
 
     // Optional elemental pieces checkbox for Sandtrix
-    m_chkElements = new QCheckBox("Enable Elemental Pieces (Water and Acid)", modeBox);
+    m_chkElements = new QCheckBox("Enable Elemental Pieces (Water, Ice, Fire & Acid)", modeBox);
     m_chkElements->setCursor(Qt::PointingHandCursor);
     m_chkElements->setContentsMargins(24, 2, 0, 0);
     m_chkElements->setStyleSheet(
@@ -874,9 +874,9 @@ SettingsWidget::SettingsWidget(const GameSettings& currentSettings, QWidget* par
 void SettingsWidget::updateModeLabels() {
     bool elemOn = m_chkElements->isChecked();
     if (elemOn) {
-        m_chkElements->setText("Enable Elemental Pieces (Water and Acid) — ON");
+        m_chkElements->setText("Enable Elemental Pieces (Water, Ice, Fire & Acid) — ON");
     } else {
-        m_chkElements->setText("Enable Elemental Pieces (Water and Acid) — OFF");
+        m_chkElements->setText("Enable Elemental Pieces (Water, Ice, Fire & Acid) — OFF");
     }
 }
 
@@ -1109,6 +1109,8 @@ HowToPlayWidget::HowToPlayWidget(QWidget* parent)
 
     addCard("4. Elemental Pieces (Sandtrix Mode)",
             "• Water Blocks (Aqua): Liquid flows horizontally to fill gaps flat. Heavy sand sinks through water! Connecting water edge-to-edge triggers a Tidal Wave (+800 pts)!\n"
+            "• Ice Blocks (Glacial Blue): Frozen solid water! When moving downwards, converts all existing water into solid Ice! Connecting ice edge-to-edge triggers Frost Shatter!\n"
+            "• Fire Blocks (Fiery Orange): Blazing heat! When falling on ice, instantly melts the ice back into Water! Connecting fire edge-to-edge triggers Fire Storm!\n"
             "• Acid Blocks (Lime): Distinct radioactive lime blocks that actively dissolve sand directly beneath them on impact.\n"
             "• Note: Elemental pieces can be enabled or disabled in Settings for Sandtrix mode.",
             "#68c48a");

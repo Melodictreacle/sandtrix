@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QPainter, QColor, QFont, QPen, QBrush
 
-from config import PALETTES, MINO_SIZE
+from config import PALETTES, MINO_SIZE, ELEMENT_COLORS
 from tetromino import Tetromino
 
 
@@ -102,10 +102,25 @@ class PiecePreviewWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+        # Determine Title & Title Color
+        display_title = self.title.upper()
+        title_color = QColor("#7d8597")
+
+        if self.piece:
+            if self.piece.is_water():
+                display_title = "WATER"
+                title_color = QColor("#00D2D7")
+            elif self.piece.is_ice():
+                display_title = "ICE"
+                title_color = QColor("#99E6FF")
+            elif self.piece.is_fire():
+                display_title = "FIRE"
+                title_color = QColor("#FF4500")
+
         # Draw Title
         painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        painter.setPen(QColor("#7d8597"))
-        painter.drawText(0, 14, self.title.upper())
+        painter.setPen(title_color)
+        painter.drawText(0, 14, display_title)
 
         # Draw Background Box
         box_y = 20
@@ -119,8 +134,11 @@ class PiecePreviewWidget(QWidget):
             return
 
         # Render Tetromino grains
-        palette_colors = PALETTES.get(self.palette_name, PALETTES["Cyber Neon"])["colors"]
-        color_tuple = palette_colors[self.piece.color_idx % len(palette_colors)]
+        if self.piece.color_idx in ELEMENT_COLORS:
+            color_tuple = ELEMENT_COLORS[self.piece.color_idx][:3]
+        else:
+            palette_colors = PALETTES.get(self.palette_name, PALETTES["Cyber Neon"])["colors"]
+            color_tuple = palette_colors[self.piece.color_idx % len(palette_colors)][:3]
         grain_color = QColor(*color_tuple)
 
         mask = self.piece.grain_mask

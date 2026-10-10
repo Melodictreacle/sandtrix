@@ -20,7 +20,7 @@ constexpr int DANGER_ROW = 16;           // Top 16 grains (approx 2 minos from c
 constexpr int FRAME_RATE = 60;
 constexpr int FRAME_TIME_MS = 1000 / FRAME_RATE; // ~16 ms
 constexpr int SOFT_DROP_GRAVITY_MS = 4;
-constexpr int LOCK_DELAY_MS = 0;
+constexpr int LOCK_DELAY_MS = 140;
 constexpr int DAS_DELAY_MS = 140;        // Delayed Auto Shift initial wait
 constexpr int ARR_REPEAT_MS = 35;        // Auto Repeat Rate interval
 constexpr int PHYSICS_SUBSTEPS = 2;      // Sub-steps per frame
@@ -31,14 +31,24 @@ constexpr int POINTS_PER_BAND = 400;
 constexpr double COMBO_MULTIPLIER_BASE = 1.5;
 
 // Special Elemental Material IDs
-constexpr uint8_t MATERIAL_WATER = 50;   // Liquid: flows horizontally, displaced upward by sinking sand
-constexpr uint8_t MATERIAL_ACID  = 51;   // Acid: dissolves sand directly below it on contact
-constexpr uint8_t MATERIAL_BOMB  = 52;   // TNT Bomb: detonates on contact and blasts a crater of sand
+constexpr uint8_t MATERIAL_WATER     = 50;   // Liquid: flows horizontally, displaced upward by sinking sand
+constexpr uint8_t MATERIAL_ACID      = 51;   // Acid: dissolves sand directly below it on contact
+constexpr uint8_t MATERIAL_BOMB      = 52;   // TNT Bomb: detonates on contact and blasts a crater of sand
+constexpr uint8_t MATERIAL_ICE       = 53;   // Ice: solid frozen water, freezes water on downward move
+constexpr uint8_t MATERIAL_FIRE      = 54;   // Fire: heat, melts ice, ignites acid, burns sand
+constexpr uint8_t MATERIAL_STEAM     = 55;   // Steam: light vapor gas, rises, dissipates after few seconds
+constexpr uint8_t MATERIAL_TOXIC_GAS = 56;   // Toxic Cloud: green vapor from fire + acid, rises & dissipates
+constexpr uint8_t MATERIAL_ASH       = 57;   // Ash: burnt sand residue, charcoal ash gray powder
 
 // Distinct, High-Visibility Material Colors (Completely distinct from sand blocks)
-inline QColor getWaterColor() { return QColor(0, 210, 215); }   // Distinct Turquoise Aqua (#00D2D7)
-inline QColor getAcidColor()  { return QColor(205, 235, 45); }  // Distinct Chartreuse Lime (#CDEB2D)
-inline QColor getBombColor()  { return QColor(255, 75, 75); }   // Distinct TNT Red-Orange (#FF4B4B)
+inline QColor getWaterColor()    { return QColor(0, 210, 215); }   // Distinct Turquoise Aqua (#00D2D7)
+inline QColor getAcidColor()     { return QColor(205, 235, 45); }  // Distinct Chartreuse Lime (#CDEB2D)
+inline QColor getBombColor()     { return QColor(255, 75, 75); }   // Distinct TNT Red-Orange (#FF4B4B)
+inline QColor getIceColor()      { return QColor(153, 230, 255); } // Distinct Glacial Frost Blue (#99E6FF)
+inline QColor getFireColor()     { return QColor(255, 69, 0); }    // Distinct Blazing Fiery Orange (#FF4500)
+inline QColor getSteamColor()    { return QColor(225, 235, 245); } // Distinct Soft Mist White-Blue (#E1EBF5)
+inline QColor getToxicGasColor() { return QColor(57, 255, 20); }   // Distinct Radioactive Neon Green (#39FF14)
+inline QColor getAshColor()      { return QColor(138, 144, 150); } // Distinct Charcoal Ash Gray (#8A9096)
 
 // Color Palette struct
 struct ColorPalette {

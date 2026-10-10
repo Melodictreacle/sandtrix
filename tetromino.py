@@ -1,8 +1,10 @@
-"""Tetromino shapes, rotations, collision detection, and 7-bag randomizer."""
-
 import random
 import numpy as np
-from config import BOARD_WIDTH, BOARD_HEIGHT, MINO_SIZE
+from config import (
+    BOARD_WIDTH, BOARD_HEIGHT, MINO_SIZE,
+    MATERIAL_WATER, MATERIAL_ACID, MATERIAL_BOMB, MATERIAL_ICE, MATERIAL_FIRE,
+    MATERIAL_STEAM, MATERIAL_TOXIC_GAS
+)
 
 # Mino matrices for standard 4 rotations (0: spawn, 1: 90 CW, 2: 180, 3: 270 CCW)
 TETROMINO_SHAPES = {
@@ -153,13 +155,14 @@ TETROMINO_SHAPES = {
 # Wall kick offsets in grains to test during rotation
 WALL_KICK_TESTS = [
     (0, 0),
-    (MINO_SIZE, 0),
-    (-MINO_SIZE, 0),
-    (2 * MINO_SIZE, 0),
-    (-2 * MINO_SIZE, 0),
-    (0, -MINO_SIZE),
-    (MINO_SIZE, -MINO_SIZE),
-    (-MINO_SIZE, -MINO_SIZE),
+    (1, 0), (-1, 0), (0, -1),
+    (2, 0), (-2, 0), (0, -2),
+    (4, 0), (-4, 0), (0, -4),
+    (MINO_SIZE, 0), (-MINO_SIZE, 0), (0, -MINO_SIZE),
+    (MINO_SIZE, -1), (-MINO_SIZE, -1),
+    (MINO_SIZE, -2), (-MINO_SIZE, -2),
+    (MINO_SIZE, -MINO_SIZE), (-MINO_SIZE, -MINO_SIZE),
+    (2 * MINO_SIZE, 0), (-2 * MINO_SIZE, 0),
 ]
 
 
@@ -232,7 +235,8 @@ class Tetromino:
 
         # Ignore grains that are above the top row (y < 0)
         valid = (abs_y >= 0) & (abs_y < H) & (abs_x >= 0) & (abs_x < W)
-        if np.any(sand_grid[abs_y[valid], abs_x[valid]] > 0):
+        cell_vals = sand_grid[abs_y[valid], abs_x[valid]]
+        if np.any((cell_vals > 0) & (cell_vals != MATERIAL_STEAM) & (cell_vals != MATERIAL_TOXIC_GAS)):
             return True
 
         return False
@@ -268,6 +272,35 @@ class Tetromino:
             ghost_y += step
         return ghost_y
 
+    def is_water(self) -> bool:
+        return self.color_idx == MATERIAL_WATER
+
+    def is_acid(self) -> bool:
+        return self.color_idx == MATERIAL_ACID
+
+    def is_bomb(self) -> bool:
+        return self.color_idx == MATERIAL_BOMB
+
+    def is_ice(self) -> bool:
+        return self.color_idx == MATERIAL_ICE
+
+    def is_fire(self) -> bool:
+        return self.color_idx == MATERIAL_FIRE
+
+    @property
+    def element_name(self) -> str:
+        if self.is_water():
+            return "WATER"
+        if self.is_ice():
+            return "ICE"
+        if self.is_fire():
+            return "FIRE"
+        if self.is_acid():
+            return "ACID"
+        if self.is_bomb():
+            return "TNT"
+        return ""
+
     def get_occupied_grains(self) -> list:
         """Returns list of (y, x, color_idx) for all active grains."""
         gy, gx = np.where(self.grain_mask)
@@ -275,10 +308,11 @@ class Tetromino:
 
 
 class BagRandomizer:
-    """Standard 7-Bag fair randomizer for Tetrominoes and balanced sand colors."""
+    """Standard 7-Bag fair randomizer for Tetrominoes and balanced sand colors with elemental pieces."""
 
-    def __init__(self, num_colors: int = 4):
+    def __init__(self, num_colors: int = 4, enable_elements: bool = True):
         self.num_colors = num_colors
+        self.enable_elements = enable_elements
         self.shapes_pool = list(TETROMINO_SHAPES.keys())
         self.current_bag = []
         self._refill_bag()
@@ -287,23 +321,45 @@ class BagRandomizer:
         self.current_bag = self.shapes_pool.copy()
         random.shuffle(self.current_bag)
 
+    def _pick_color(self) -> int:
+        if self.enable_elements:
+            roll = random.random()
+            if roll < 0.12:
+                return MATERIAL_WATER  # Water liquid piece
+            elif roll < 0.24:
+                return MATERIAL_ICE    # Ice solid piece
+            elif roll < 0.36:
+                return MATERIAL_FIRE   # Fire blazing piece
+        return random.randint(1, self.num_colors)
+
     def next_piece(self) -> Tetromino:
         if not self.current_bag:
             self._refill_bag()
         shape = self.current_bag.pop()
-        color_idx = random.randint(1, self.num_colors)
+        color_idx = self._pick_color()
         return Tetromino(shape, color_idx)
 
     def peek_next(self, count: int = 3) -> list:
         """Looks ahead at upcoming pieces without consuming them."""
         preview = []
         temp_bag = self.current_bag.copy()
+        sim_count = 0
         while len(preview) < count:
             if not temp_bag:
                 temp_bag = self.shapes_pool.copy()
                 random.shuffle(temp_bag)
             shape = temp_bag.pop()
-            # Assign deterministic preview color based on hash/random seed
-            color_idx = (hash(shape + str(len(preview))) % self.num_colors) + 1
+            sim_count += 1
+            if self.enable_elements:
+                if sim_count % 7 == 1:
+                    color_idx = MATERIAL_WATER
+                elif sim_count % 7 == 3:
+                    color_idx = MATERIAL_ICE
+                elif sim_count % 7 == 5:
+                    color_idx = MATERIAL_FIRE
+                else:
+                    color_idx = (hash(shape + str(len(preview))) % self.num_colors) + 1
+            else:
+                color_idx = (hash(shape + str(len(preview))) % self.num_colors) + 1
             preview.append(Tetromino(shape, color_idx))
         return preview

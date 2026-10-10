@@ -153,6 +153,54 @@ void GameCanvas::onGameLoop() {
         if (m_audio) m_audio->playAcidSizzle();
     }
 
+    if (event.waterFrozen) {
+        m_particles.addClearedSandSparks(event.frozenCoords, getIceColor());
+        if (m_audio) m_audio->playClear(1);
+        m_particles.addFloatingText(
+            CANVAS_WIDTH / 2.0f - 55.0f, 250.0f,
+            "FROST FREEZE!", getIceColor(), 16
+        );
+    }
+
+    if (event.iceMelted || event.steamCreated) {
+        m_particles.addWaterSplash(CANVAS_WIDTH / 2.0f, 300.0f, 40);
+        if (m_audio) m_audio->playAcidSizzle();
+        m_particles.addFloatingText(
+            CANVAS_WIDTH / 2.0f - 65.0f, 250.0f,
+            "ICE MELTED + STEAM!", QColor(225, 235, 250), 16
+        );
+    }
+
+    if (event.toxicCloudCreated) {
+        m_particles.addClearedSandSparks(event.toxicCoords, getToxicGasColor());
+        if (m_audio) m_audio->playAcidSizzle();
+        m_particles.addFloatingText(
+            CANVAS_WIDTH / 2.0f - 55.0f, 250.0f,
+            "TOXIC CLOUD!", getToxicGasColor(), 16
+        );
+        m_particles.triggerShake(4.0f);
+    }
+
+    if (event.sandBurned) {
+        m_particles.addClearedSandSparks(event.burnedCoords, getAshColor());
+        if (m_audio) m_audio->playClear(1);
+        m_particles.addFloatingText(
+            CANVAS_WIDTH / 2.0f - 65.0f, 250.0f,
+            "SAND BURNED TO ASH!", getAshColor(), 15
+        );
+    }
+
+    if (event.fireExtinguished) {
+        m_particles.addWaterSplash(CANVAS_WIDTH / 2.0f, 300.0f, 40);
+        m_particles.addClearedSandSparks(event.extinguishedCoords, getFireColor());
+        if (m_audio) m_audio->playAcidSizzle();
+        m_particles.addFloatingText(
+            CANVAS_WIDTH / 2.0f - 65.0f, 250.0f,
+            "FIRE EXTINGUISHED!", QColor(255, 140, 60), 16
+        );
+        m_particles.triggerShake(3.0f);
+    }
+
     if (event.cleared) {
         if (event.isClassicTetris) {
             static const char* classicNames[] = { "", "SINGLE!", "DOUBLE!", "TRIPLE!", "TETRIS!" };
@@ -210,6 +258,15 @@ void GameCanvas::onGameLoop() {
                 col = getWaterColor();
                 m_particles.addWaterSplash(CANVAS_WIDTH / 2.0f, 300.0f, 60);
                 if (m_audio) m_audio->playWaterSplash();
+            } else if (event.isIceClear) {
+                col = getIceColor();
+                if (m_audio) m_audio->playClear(2);
+            } else if (event.isFireClear) {
+                col = getFireColor();
+                if (m_audio) m_audio->playClear(3);
+            } else if (event.isAshClear) {
+                col = getAshColor();
+                if (m_audio) m_audio->playClear(2);
             } else {
                 col = m_palette.colors[event.color % m_palette.colors.size()];
             }
@@ -228,6 +285,24 @@ void GameCanvas::onGameLoop() {
                 m_particles.addFloatingText(
                     CANVAS_WIDTH / 2.0f - 65.0f, static_cast<float>(midY),
                     QString("TIDAL WAVE! +%1").arg(event.points),
+                    col, 16
+                );
+            } else if (event.isIceClear) {
+                m_particles.addFloatingText(
+                    CANVAS_WIDTH / 2.0f - 65.0f, static_cast<float>(midY),
+                    QString("FROST SHATTER! +%1").arg(event.points),
+                    col, 16
+                );
+            } else if (event.isFireClear) {
+                m_particles.addFloatingText(
+                    CANVAS_WIDTH / 2.0f - 60.0f, static_cast<float>(midY),
+                    QString("FIRE STORM! +%1").arg(event.points),
+                    col, 16
+                );
+            } else if (event.isAshClear) {
+                m_particles.addFloatingText(
+                    CANVAS_WIDTH / 2.0f - 60.0f, static_cast<float>(midY),
+                    QString("ASH PURGED! +%1").arg(event.points),
                     col, 16
                 );
             } else if (event.combo > 1) {
@@ -267,7 +342,8 @@ void GameCanvas::onGameLoop() {
             bool nearCeiling = false;
             for (int r = 0; r < ceilingCheckLimit; ++r) {
                 for (int c = 0; c < BOARD_WIDTH; ++c) {
-                    if (grid[r * BOARD_WIDTH + c] > 0) {
+                    uint8_t val = grid[r * BOARD_WIDTH + c];
+                    if (val > 0 && val != MATERIAL_STEAM && val != MATERIAL_TOXIC_GAS) {
                         nearCeiling = true;
                         break;
                     }
@@ -314,6 +390,7 @@ void GameCanvas::onGameLoop() {
 }
 
 void GameCanvas::keyPressEvent(QKeyEvent* event) {
+    if (event->isAutoRepeat()) return;
     int key = event->key();
 
     if (key == Qt::Key_R) {
@@ -417,6 +494,7 @@ void GameCanvas::keyPressEvent(QKeyEvent* event) {
 }
 
 void GameCanvas::keyReleaseEvent(QKeyEvent* event) {
+    if (event->isAutoRepeat()) return;
     int key = event->key();
 
     if (key == Qt::Key_Left || key == Qt::Key_A) {
@@ -456,6 +534,11 @@ void GameCanvas::paintEvent(QPaintEvent*) {
     uint32_t waterRgb = getWaterColor().rgb();
     uint32_t acidRgb = getAcidColor().rgb();
     uint32_t bombRgb = getBombColor().rgb();
+    uint32_t iceRgb = getIceColor().rgb();
+    uint32_t fireRgb = getFireColor().rgb();
+    uint32_t steamRgb = getSteamColor().rgb();
+    uint32_t toxicRgb = getToxicGasColor().rgb();
+    uint32_t ashRgb = getAshColor().rgb();
 
     for (int i = 0; i < BOARD_WIDTH * BOARD_HEIGHT; ++i) {
         uint8_t c = grid[i];
@@ -465,6 +548,16 @@ void GameCanvas::paintEvent(QPaintEvent*) {
             bits[i] = acidRgb;
         } else if (c == MATERIAL_BOMB) {
             bits[i] = bombRgb;
+        } else if (c == MATERIAL_ICE) {
+            bits[i] = iceRgb;
+        } else if (c == MATERIAL_FIRE) {
+            bits[i] = fireRgb;
+        } else if (c == MATERIAL_STEAM) {
+            bits[i] = steamRgb;
+        } else if (c == MATERIAL_TOXIC_GAS) {
+            bits[i] = toxicRgb;
+        } else if (c == MATERIAL_ASH) {
+            bits[i] = ashRgb;
         } else {
             bits[i] = paletteRgb[c % numPalColors];
         }
@@ -516,6 +609,8 @@ void GameCanvas::paintEvent(QPaintEvent*) {
             if (active->isWater()) ghostCol = getWaterColor();
             else if (active->isAcid()) ghostCol = getAcidColor();
             else if (active->isBomb()) ghostCol = getBombColor();
+            else if (active->isIce()) ghostCol = getIceColor();
+            else if (active->isFire()) ghostCol = getFireColor();
             else ghostCol = m_palette.colors[active->getColorIdx() % numPalColors];
 
             ghostCol.setAlpha(65);
@@ -546,7 +641,9 @@ void GameCanvas::paintEvent(QPaintEvent*) {
         else if (active->isBomb()) {
             int flash = static_cast<int>(m_pulseTime * 8) % 2;
             activeCol = (flash == 0) ? getBombColor() : QColor(255, 180, 30);
-        } else activeCol = m_palette.colors[active->getColorIdx() % numPalColors];
+        } else if (active->isIce()) activeCol = getIceColor();
+        else if (active->isFire()) activeCol = getFireColor();
+        else activeCol = m_palette.colors[active->getColorIdx() % numPalColors];
 
         painter.setPen(Qt::NoPen);
         painter.setBrush(activeCol);

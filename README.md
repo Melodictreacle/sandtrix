@@ -59,7 +59,7 @@ Sandtrix supports four distinct game modes, toggleable directly from the **Main 
 - **Fluid Cellular Automata**: Multi-substep physics engine simulates sliding granular avalanches and slopes.
 - **Edge-to-Edge Line Clears**: Clear colored bands by connecting unbroken paths of the same color from the left wall ($x = 0$) to the right wall ($x = 79$).
 - **Avalanche Combos**: Collapsing sand triggers compounding combo multipliers.
-- **Optional Elemental Pieces**: Toggle Water (lateral leveling & tidal wave clears) and Acid (corrosive excavation) on or off in Settings.
+- **Optional Elemental Pieces**: Toggle Water (fluid leveling & tidal wave clears), Ice (freezes water upon downward movement & frost clears), Fire (melts ice back into water & fire storm clears), and Acid (corrosive excavation) in Settings.
 
 ### 2. Classic Tetris (Solid Grid Mode)
 - **Authentic Rigid Grid**: Traditional 10-column × 17-row mino playfield with subtle dot-line grid rendering.
@@ -151,9 +151,29 @@ For acid cells (`MATERIAL_ACID`):
   - Both $(x, y)$ and $(x, y+1)$ are erased to empty (`0`).
   - Triggers an acid sizzle sound and particle spawn.
 
+For ice cells (`MATERIAL_ICE`):
+- Solid frozen water that avalanches with granular friction.
+- **Downward Freezing**: Whenever an active ice block moves downwards or lands, all existing water cells in the grid instantly flash-freeze into solid ice (`MATERIAL_ICE`), locking fluid flow in place!
+- When ice grains settle or move downwards, any water grains they touch freeze into ice.
+
+For fire cells (`MATERIAL_FIRE`):
+- Roaring thermal pieces with blazing dynamic interactions:
+  - **Ice Melting + Steam**: When fire falls on ice, ice converts into liquid water (`MATERIAL_WATER`) and buoyant steam (`MATERIAL_STEAM`). Steam rises upward into the air and naturally dissipates after a few seconds.
+  - **Acid Ignition + Toxic Cloud**: When fire falls upon acid (`MATERIAL_ACID`), it triggers a volatile chemical reaction, generating a radioactive green toxic cloud (`MATERIAL_TOXIC_GAS`) that billows upward and dissipates after a few seconds.
+  - **Sand Scorching + Ash**: When fire falls upon sand, a portion of the contact sand burns and converts into charcoal ash powder (`MATERIAL_ASH`).
+- Melted water resumes fluid flow, leveling out flat, and ash settles like granular powder.
+
+For steam & toxic gas cells (`MATERIAL_STEAM`, `MATERIAL_TOXIC_GAS`):
+- Buoyant gas vapors simulated with upward inverted gravity ($y - 1$).
+- Gradually dissipate into the open atmosphere after 2–3 seconds.
+
+For ash cells (`MATERIAL_ASH`):
+- Charcoal-gray granular powder residue created from burned sand.
+- Cascades like sand and connects edge-to-edge for full "ASH PURGED!" line clears.
+
 ### 5. 8-Connected BFS Edge-to-Edge Line Clears
 Every frame where sand settles, the engine checks for completed paths ([`SandEngine::checkLineClears`](file:///C:/Users/omega/Desktop/sandtrix/src/SandEngine.cpp)):
-1. For each active color ($c \in \{1, 2, 3, 4, \text{WATER}\}$):
+1. For each active color ($c \in \{1, 2, 3, 4, \text{WATER}, \text{ICE}, \text{FIRE}\}$):
 2. Collect all cells on the left boundary ($x = 0$) where $\text{grid}[y \times W + 0] == c$.
 3. Perform a **Breadth-First Search (BFS)** using an 8-connected neighborhood:
    $$\mathcal{N} = \{(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)\}$$
@@ -214,6 +234,8 @@ To ensure effortless identification without visual fatigue, the game uses **one 
 | **Block 3** | **Emerald Jade** | `#28B964` | $145^\circ$ (Green) | Deep botanical green; cleanly separated from gold & blue. |
 | **Block 4** | **Sapphire Blue** | `#327DEB` | $216^\circ$ (Blue) | Vibrant royal cobalt blue; cool and saturated. |
 | **Water** | **Turquoise Aqua** | `#00D2D7` | $180^\circ$ (Cyan) | Sparkling light cyan; distinct from deep sapphire blue. |
+| **Ice** | **Glacial Frost Blue** | `#99E6FF` | $195^\circ$ (Ice) | Crisp glacial cyan-white; distinct solid crystal tone. |
+| **Fire** | **Blazing Fiery Orange** | `#FF4500` | $16^\circ$ (Orange) | Vivid roaring flame orange; high temperature contrast. |
 | **Acid** | **Chartreuse Lime** | `#CDEB2D` | $70^\circ$ (Lime) | Radioactive yellow-green; distinct from emerald jade. |
 | **Background** | **Slate Charcoal** | `#12151C` | — | Deep, warm dark slate eliminating glare and eye strain. |
 

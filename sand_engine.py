@@ -10,7 +10,9 @@ from config import (
     BOARD_WIDTH, BOARD_HEIGHT, DANGER_ROW,
     POINTS_PER_GRAIN, POINTS_PER_BAND, COMBO_MULTIPLIER_BASE,
     GRAVITY_INTERVALS, SOFT_DROP_GRAVITY_MS, LOCK_DELAY_MS,
-    PHYSICS_SUBSTEPS, HIGHSCORE_FILE
+    PHYSICS_SUBSTEPS, HIGHSCORE_FILE,
+    MATERIAL_WATER, MATERIAL_ACID, MATERIAL_BOMB, MATERIAL_ICE, MATERIAL_FIRE,
+    MATERIAL_STEAM, MATERIAL_TOXIC_GAS, MATERIAL_ASH
 )
 from tetromino import Tetromino, BagRandomizer
 
@@ -50,6 +52,14 @@ class SandEngine:
         # Settling state
         self.is_sand_moving = False
         self.last_drop_had_clear = False
+        
+        # Elemental reaction tracking
+        self.last_frozen_coords: List[Tuple[int, int]] = []
+        self.last_melted_coords: List[Tuple[int, int]] = []
+        self.last_toxic_coords: List[Tuple[int, int]] = []
+        self.last_burned_coords: List[Tuple[int, int]] = []
+        self.last_steam_coords: List[Tuple[int, int]] = []
+        self.last_extinguished_coords: List[Tuple[int, int]] = []
         
         # Cleared grains flash / dissolve animation buffer: { (y, x): (color, frames_left) }
         self.dissolving_grains: Dict[Tuple[int, int], Tuple[int, int]] = {}
@@ -95,8 +105,14 @@ class SandEngine:
         self.is_sand_moving = False
         self.last_drop_had_clear = False
         self.dissolving_grains.clear()
+        self.last_frozen_coords.clear()
+        self.last_melted_coords.clear()
+        self.last_toxic_coords.clear()
+        self.last_burned_coords.clear()
+        self.last_steam_coords.clear()
+        self.last_extinguished_coords.clear()
         
-        self.randomizer = BagRandomizer(num_colors=self.num_colors)
+        self.randomizer = BagRandomizer(num_colors=self.num_colors, enable_elements=True)
         self.next_queue.clear()
         self._refill_next_queue()
         self.spawn_piece()
@@ -146,13 +162,28 @@ class SandEngine:
     def move_piece(self, dx: int) -> bool:
         """Moves active piece horizontally by dx grains (e.g. +/- MINO_SIZE or 1 grain)."""
         if self.active_piece and not self.game_over and not self.paused:
-            return self.active_piece.try_move(dx, 0, self.grid)
+            if self.active_piece.try_move(dx, 0, self.grid):
+                self.lock_timer = 0
+                return True
+            # Slide flush against obstacle if full step blocked
+            direction = 1 if dx > 0 else -1
+            for step in range(abs(dx) - 1, 0, -1):
+                if self.active_piece.try_move(step * direction, 0, self.grid):
+                    self.lock_timer = 0
+                    return True
+            # Step up over minor 1-2 grain bumps on sand floor
+            for dy in (-1, -2):
+                if self.active_piece.try_move(dx, dy, self.grid):
+                    self.lock_timer = 0
+                    return True
         return False
 
     def rotate_piece(self, direction: int) -> bool:
         """Rotates active piece CW (+1) or CCW (-1)."""
         if self.active_piece and not self.game_over and not self.paused:
-            return self.active_piece.try_rotate(direction, self.grid)
+            if self.active_piece.try_rotate(direction, self.grid):
+                self.lock_timer = 0
+                return True
         return False
 
     def hard_drop(self) -> Tuple[int, int, List[Tuple[float, float]]]:
@@ -168,6 +199,17 @@ class SandEngine:
         land_x = self.active_piece.x
         land_y = ghost_y
 
+        # When ice block moves downwards, existing water in contact converts into ice
+        if self.active_piece.is_ice():
+            for gy, gx, _ in self.active_piece.get_occupied_grains():
+                for dy in (0, 1, 2):
+                    for dx in (-1, 0, 1):
+                        ny, nx = gy + dy, gx + dx
+                        if 0 <= ny < self.height and 0 <= nx < self.width:
+                            if self.grid[ny, nx] == MATERIAL_WATER:
+                                self.grid[ny, nx] = MATERIAL_ICE
+                                self.last_frozen_coords.append((ny, nx))
+
         impact_coords = []
         for gy, gx, _ in self.active_piece.get_occupied_grains():
             impact_coords.append((float(gx), float(gy)))
@@ -180,9 +222,92 @@ class SandEngine:
         if not self.active_piece:
             return
 
-        for gy, gx, col in self.active_piece.get_occupied_grains():
-            if 0 <= gy < self.height and 0 <= gx < self.width:
-                self.grid[gy, gx] = col
+        is_ice = self.active_piece.is_ice()
+        if is_ice:
+            for gy, gx, _ in self.active_piece.get_occupied_grains():
+                for dy in (0, 1, 2):
+                    for dx in (-1, 0, 1):
+                        ny, nx = gy + dy, gx + dx
+                        if 0 <= ny < self.height and 0 <= nx < self.width:
+                            if self.grid[ny, nx] == MATERIAL_WATER:
+                                self.grid[ny, nx] = MATERIAL_ICE
+                                self.last_frozen_coords.append((ny, nx))
+
+        is_fire = self.active_piece.is_fire()
+        hit_water = False
+        hit_ice = False
+        hit_acid = False
+        hit_sand = False
+        contact_sand_coords = []
+        contact_acid_coords = []
+
+        if is_fire:
+            # Check what materials the fire piece landed on or touches
+            for gy, gx, _ in self.active_piece.get_occupied_grains():
+                for dy, dx in [(1, 0), (0, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1)]:
+                    ny, nx = gy + dy, gx + dx
+                    if 0 <= ny < self.height and 0 <= nx < self.width:
+                        val = self.grid[ny, nx]
+                        if val == MATERIAL_WATER:
+                            hit_water = True
+                        elif val == MATERIAL_ICE:
+                            hit_ice = True
+                        elif val == MATERIAL_ACID:
+                            hit_acid = True
+                            contact_acid_coords.append((ny, nx))
+                        elif 1 <= val <= 10 or val == MATERIAL_ASH:
+                            hit_sand = True
+                            contact_sand_coords.append((ny, nx))
+
+        # 0. Fire on Water: When fire falls down upon water, fire is totally destroyed!
+        if is_fire and hit_water:
+            for gy, gx, _ in self.active_piece.get_occupied_grains():
+                if 0 <= gy < self.height and 0 <= gx < self.width:
+                    self.last_extinguished_coords.append((gy, gx))
+            # Fire is completely erased/extinguished: none of its grains are placed on the grid
+
+        # 1. Fire on Ice: Converts ice to water AND fire to steam (steam disappears after few seconds)
+        elif is_fire and hit_ice:
+            ice_mask = (self.grid == MATERIAL_ICE)
+            if np.any(ice_mask):
+                ice_indices = np.argwhere(ice_mask)
+                self.grid[ice_mask] = MATERIAL_WATER
+                self.last_melted_coords.extend([(int(y), int(x)) for y, x in ice_indices])
+            
+            # Fire that fell on ice converts to buoyant steam grains in the air
+            for gy, gx, _ in self.active_piece.get_occupied_grains():
+                if 0 <= gy < self.height and 0 <= gx < self.width:
+                    self.grid[gy, gx] = MATERIAL_STEAM
+                    self.last_steam_coords.append((gy, gx))
+
+        # 2. Fire on Acid: Creates green toxic cloud (disappears after few seconds)
+        elif is_fire and hit_acid:
+            for ay, ax in set(contact_acid_coords):
+                self.grid[ay, ax] = MATERIAL_TOXIC_GAS
+                self.last_toxic_coords.append((ay, ax))
+            for gy, gx, _ in self.active_piece.get_occupied_grains():
+                if 0 <= gy < self.height and 0 <= gx < self.width:
+                    self.grid[gy, gx] = MATERIAL_TOXIC_GAS
+                    self.last_toxic_coords.append((gy, gx))
+
+        # 3. Fire on Sand: A portion of sand burns to ash; fire piece burns entirely into ash (no red pixels remain!)
+        elif is_fire and hit_sand:
+            # Portion of touching sand grains burns into ash
+            for sy, sx in set(contact_sand_coords):
+                if random.random() < 0.60:
+                    self.grid[sy, sx] = MATERIAL_ASH
+                    self.last_burned_coords.append((sy, sx))
+            # Fire piece settles entirely as ash residue (100% ash, 0% red fire)
+            for gy, gx, _ in self.active_piece.get_occupied_grains():
+                if 0 <= gy < self.height and 0 <= gx < self.width:
+                    self.grid[gy, gx] = MATERIAL_ASH
+                    self.last_burned_coords.append((gy, gx))
+        else:
+            for gy, gx, col in self.active_piece.get_occupied_grains():
+                if 0 <= gy < self.height and 0 <= gx < self.width:
+                    cur = self.grid[gy, gx]
+                    if cur in (0, MATERIAL_STEAM, MATERIAL_TOXIC_GAS):
+                        self.grid[gy, gx] = col
 
         self.active_piece = None
         self.can_hold = True
@@ -190,8 +315,10 @@ class SandEngine:
         self.is_soft_dropping = False
         self.is_sand_moving = True
 
-        # Check if sand breached danger line at top
-        if np.any(self.grid[:DANGER_ROW, :] > 0):
+        # Check if sand breached danger line at top (ignoring rising atmospheric gases)
+        danger_zone = self.grid[:DANGER_ROW, :]
+        solid_in_danger = (danger_zone > 0) & (danger_zone != MATERIAL_STEAM) & (danger_zone != MATERIAL_TOXIC_GAS)
+        if np.any(solid_in_danger):
             self.game_over = True
             if self.score > self.high_score:
                 self.high_score = self.score
@@ -202,15 +329,76 @@ class SandEngine:
 
     def update_physics(self) -> bool:
         """
-        Executes one sub-step of falling sand cellular automata.
-        Returns True if any sand grain moved.
+        Executes one sub-step of cellular automata (sand, water fluid, ice, fire, steam, toxic gas, ash).
+        Returns True if any grain moved or reacted.
         """
         moved = False
         H = self.height
         W = self.width
         grid = self.grid
 
-        # Process from bottom-up
+        # ================= PASS 1: RISING GASES (STEAM & TOXIC CLOUD) =================
+        # Process top-down so rising gas grains advance at most 1 grain per sub-step
+        for y in range(0, H):
+            row = grid[y]
+            gas_xs = np.where((row == MATERIAL_STEAM) | (row == MATERIAL_TOXIC_GAS))[0]
+            if len(gas_xs) == 0:
+                continue
+
+            np.random.shuffle(gas_xs)
+
+            for x in gas_xs:
+                gmat = grid[y, x]
+                if gmat not in (MATERIAL_STEAM, MATERIAL_TOXIC_GAS):
+                    continue
+
+                # Spontaneous dissipation over a few seconds (~2-3s half-life)
+                dissipate_rate = 0.010 if gmat == MATERIAL_STEAM else 0.012
+                if random.random() < dissipate_rate:
+                    grid[y, x] = 0
+                    moved = True
+                    continue
+
+                # Dissipate into the open sky if reached ceiling
+                if y == 0:
+                    grid[y, x] = 0
+                    moved = True
+                    continue
+
+                # Buoyant upward rise
+                if grid[y - 1, x] == 0:
+                    grid[y - 1, x] = gmat
+                    grid[y, x] = 0
+                    moved = True
+                else:
+                    # Up-diagonals
+                    ul_empty = (x > 0 and grid[y - 1, x - 1] == 0)
+                    ur_empty = (x < W - 1 and grid[y - 1, x + 1] == 0)
+                    if ul_empty and ur_empty:
+                        nx = x - 1 if random.random() < 0.5 else x + 1
+                        grid[y - 1, nx] = gmat
+                        grid[y, x] = 0
+                        moved = True
+                    elif ul_empty:
+                        grid[y - 1, x - 1] = gmat
+                        grid[y, x] = 0
+                        moved = True
+                    elif ur_empty:
+                        grid[y - 1, x + 1] = gmat
+                        grid[y, x] = 0
+                        moved = True
+                    else:
+                        # Lateral drift if ceiling blocked
+                        l_empty = (x > 0 and grid[y, x - 1] == 0)
+                        r_empty = (x < W - 1 and grid[y, x + 1] == 0)
+                        if (l_empty or r_empty) and random.random() < 0.25:
+                            nx = (x - 1) if (l_empty and (not r_empty or random.random() < 0.5)) else (x + 1)
+                            grid[y, nx] = gmat
+                            grid[y, x] = 0
+                            moved = True
+
+        # ================= PASS 2: FALLING / SETTLING MATTER =================
+        # Process bottom-up for gravity
         for y in range(H - 2, -1, -1):
             row = grid[y]
             sand_xs = np.where(row > 0)[0]
@@ -221,30 +409,227 @@ class SandEngine:
             np.random.shuffle(sand_xs)
 
             for x in sand_xs:
-                color = grid[y, x]
-                # 1. Check straight down
-                if grid[y + 1, x] == 0:
-                    grid[y + 1, x] = color
-                    grid[y, x] = 0
-                    moved = True
-                else:
-                    # 2. Check diagonals with static friction/viscosity
-                    left_ok = (x > 0 and grid[y + 1, x - 1] == 0)
-                    right_ok = (x < W - 1 and grid[y + 1, x + 1] == 0)
+                mat = grid[y, x]
+                if mat in (0, MATERIAL_STEAM, MATERIAL_TOXIC_GAS):
+                    continue
 
-                    if (left_ok or right_ok) and random.random() < 0.08:
-                        if left_ok and right_ok:
+                # ================= 1. WATER (FLUID DYNAMICS) =================
+                if mat == MATERIAL_WATER:
+                    # A. Straight Down
+                    if grid[y + 1, x] == 0:
+                        grid[y + 1, x] = MATERIAL_WATER
+                        grid[y, x] = 0
+                        moved = True
+                    else:
+                        # B. Down Diagonals
+                        dl_empty = (x > 0 and grid[y + 1, x - 1] == 0)
+                        dr_empty = (x < W - 1 and grid[y + 1, x + 1] == 0)
+                        if dl_empty and dr_empty:
                             nx = x - 1 if random.random() < 0.5 else x + 1
-                            grid[y + 1, nx] = color
+                            grid[y + 1, nx] = MATERIAL_WATER
                             grid[y, x] = 0
                             moved = True
-                        elif left_ok:
-                            grid[y + 1, x - 1] = color
+                        elif dl_empty:
+                            grid[y + 1, x - 1] = MATERIAL_WATER
                             grid[y, x] = 0
                             moved = True
-                        elif right_ok:
-                            grid[y + 1, x + 1] = color
+                        elif dr_empty:
+                            grid[y + 1, x + 1] = MATERIAL_WATER
                             grid[y, x] = 0
+                            moved = True
+                        else:
+                            # C. Lateral Leveling Flow
+                            left_empty = (x > 0 and grid[y, x - 1] == 0)
+                            right_empty = (x < W - 1 and grid[y, x + 1] == 0)
+                            if left_empty and right_empty:
+                                nx = x - 1 if random.random() < 0.5 else x + 1
+                                grid[y, nx] = MATERIAL_WATER
+                                grid[y, x] = 0
+                                moved = True
+                            elif left_empty:
+                                grid[y, x - 1] = MATERIAL_WATER
+                                grid[y, x] = 0
+                                moved = True
+                            elif right_empty:
+                                grid[y, x + 1] = MATERIAL_WATER
+                                grid[y, x] = 0
+                                moved = True
+
+                # ================= 2. ICE DYNAMICS =================
+                elif mat == MATERIAL_ICE:
+                    below = grid[y + 1, x]
+                    # Ice touching water: freeze the water!
+                    if below == MATERIAL_WATER:
+                        grid[y + 1, x] = MATERIAL_ICE
+                        self.last_frozen_coords.append((y + 1, x))
+                        moved = True
+                    elif below == 0:
+                        grid[y + 1, x] = MATERIAL_ICE
+                        grid[y, x] = 0
+                        moved = True
+                    else:
+                        dl_free = (x > 0 and (grid[y + 1, x - 1] == 0 or grid[y + 1, x - 1] == MATERIAL_WATER))
+                        dr_free = (x < W - 1 and (grid[y + 1, x + 1] == 0 or grid[y + 1, x + 1] == MATERIAL_WATER))
+                        if (dl_free or dr_free) and random.random() < 0.12:
+                            nx = (x - 1) if (dl_free and (not dr_free or random.random() < 0.5)) else (x + 1)
+                            target_val = grid[y + 1, nx]
+                            if target_val == MATERIAL_WATER:
+                                grid[y + 1, nx] = MATERIAL_ICE
+                                self.last_frozen_coords.append((y + 1, nx))
+                            else:
+                                grid[y + 1, nx] = MATERIAL_ICE
+                                grid[y, x] = 0
+                            moved = True
+
+                # ================= 3. ACID DYNAMICS =================
+                elif mat == MATERIAL_ACID:
+                    below = grid[y + 1, x]
+                    if below == 0:
+                        grid[y + 1, x] = MATERIAL_ACID
+                        grid[y, x] = 0
+                        moved = True
+                    elif below not in (MATERIAL_ACID, MATERIAL_WATER, MATERIAL_ICE, MATERIAL_FIRE, MATERIAL_TOXIC_GAS):
+                        # Acid dissolves sand
+                        grid[y + 1, x] = 0
+                        grid[y, x] = 0
+                        moved = True
+                    else:
+                        dl_empty = (x > 0 and grid[y + 1, x - 1] == 0)
+                        dr_empty = (x < W - 1 and grid[y + 1, x + 1] == 0)
+                        if (dl_empty or dr_empty) and random.random() < 0.25:
+                            nx = (x - 1) if (dl_empty and (not dr_empty or random.random() < 0.5)) else (x + 1)
+                            grid[y + 1, nx] = MATERIAL_ACID
+                            grid[y, x] = 0
+                            moved = True
+
+                # ================= 4. FIRE DYNAMICS =================
+                elif mat == MATERIAL_FIRE:
+                    below = grid[y + 1, x]
+                    # A. Fire touching Water: fire is totally destroyed!
+                    if below == MATERIAL_WATER:
+                        grid[y, x] = 0
+                        self.last_extinguished_coords.append((y, x))
+                        moved = True
+                    # B. Fire touching Ice: melts ice into water AND fire turns to steam!
+                    elif below == MATERIAL_ICE:
+                        grid[y + 1, x] = MATERIAL_WATER
+                        grid[y, x] = MATERIAL_STEAM
+                        self.last_melted_coords.append((y + 1, x))
+                        self.last_steam_coords.append((y, x))
+                        moved = True
+                    # C. Fire touching Acid: creates green toxic cloud!
+                    elif below == MATERIAL_ACID:
+                        grid[y + 1, x] = MATERIAL_TOXIC_GAS
+                        grid[y, x] = MATERIAL_TOXIC_GAS
+                        self.last_toxic_coords.extend([(y + 1, x), (y, x)])
+                        moved = True
+                    # D. Fire touching Sand or Ash: burns sand into ash, fire itself converts to ash! (No red pixels!)
+                    elif (1 <= below <= 10) or below == MATERIAL_ASH:
+                        if 1 <= below <= 10:
+                            grid[y + 1, x] = MATERIAL_ASH
+                            self.last_burned_coords.append((y + 1, x))
+                        grid[y, x] = MATERIAL_ASH
+                        self.last_burned_coords.append((y, x))
+                        moved = True
+                    # E. Fire falling into empty space
+                    elif below == 0:
+                        grid[y + 1, x] = MATERIAL_FIRE
+                        grid[y, x] = 0
+                        moved = True
+                    else:
+                        # Check diagonal contact reactions
+                        dl_water = (x > 0 and grid[y + 1, x - 1] == MATERIAL_WATER)
+                        l_water = (x > 0 and grid[y, x - 1] == MATERIAL_WATER)
+                        r_water = (x < W - 1 and grid[y, x + 1] == MATERIAL_WATER)
+                        dl_ice = (x > 0 and grid[y + 1, x - 1] == MATERIAL_ICE)
+                        dr_ice = (x < W - 1 and grid[y + 1, x + 1] == MATERIAL_ICE)
+                        dl_acid = (x > 0 and grid[y + 1, x - 1] == MATERIAL_ACID)
+                        dr_acid = (x < W - 1 and grid[y + 1, x + 1] == MATERIAL_ACID)
+                        dl_sand = (x > 0 and ((1 <= grid[y + 1, x - 1] <= 10) or grid[y + 1, x - 1] == MATERIAL_ASH))
+                        dr_sand = (x < W - 1 and ((1 <= grid[y + 1, x + 1] <= 10) or grid[y + 1, x + 1] == MATERIAL_ASH))
+                        
+                        if dl_water or dr_water or l_water or r_water:
+                            grid[y, x] = 0
+                            self.last_extinguished_coords.append((y, x))
+                            moved = True
+                        elif dl_ice:
+                            grid[y + 1, x - 1] = MATERIAL_WATER
+                            grid[y, x] = MATERIAL_STEAM
+                            self.last_melted_coords.append((y + 1, x - 1))
+                            self.last_steam_coords.append((y, x))
+                            moved = True
+                        elif dr_ice:
+                            grid[y + 1, x + 1] = MATERIAL_WATER
+                            grid[y, x] = MATERIAL_STEAM
+                            self.last_melted_coords.append((y + 1, x + 1))
+                            self.last_steam_coords.append((y, x))
+                            moved = True
+                        elif dl_acid:
+                            grid[y + 1, x - 1] = MATERIAL_TOXIC_GAS
+                            grid[y, x] = MATERIAL_TOXIC_GAS
+                            self.last_toxic_coords.extend([(y + 1, x - 1), (y, x)])
+                            moved = True
+                        elif dr_acid:
+                            grid[y + 1, x + 1] = MATERIAL_TOXIC_GAS
+                            grid[y, x] = MATERIAL_TOXIC_GAS
+                            self.last_toxic_coords.extend([(y + 1, x + 1), (y, x)])
+                            moved = True
+                        elif dl_sand or dr_sand:
+                            # Fire touching sand or ash diagonally converts to ash immediately
+                            grid[y, x] = MATERIAL_ASH
+                            self.last_burned_coords.append((y, x))
+                            moved = True
+                        else:
+                            dl_empty = (x > 0 and grid[y + 1, x - 1] == 0)
+                            dr_empty = (x < W - 1 and grid[y + 1, x + 1] == 0)
+                            if (dl_empty or dr_empty) and random.random() < 0.12:
+                                nx = (x - 1) if (dl_empty and (not dr_empty or random.random() < 0.5)) else (x + 1)
+                                grid[y + 1, nx] = MATERIAL_FIRE
+                                grid[y, x] = 0
+                                moved = True
+
+                # ================= 5. ASH DYNAMICS (BURNT SAND POWDER) =================
+                elif mat == MATERIAL_ASH:
+                    below = grid[y + 1, x]
+                    if below == 0:
+                        grid[y + 1, x] = MATERIAL_ASH
+                        grid[y, x] = 0
+                        moved = True
+                    elif below == MATERIAL_WATER:
+                        # Ash sinks in water
+                        grid[y + 1, x] = MATERIAL_ASH
+                        grid[y, x] = MATERIAL_WATER
+                        moved = True
+                    else:
+                        dl_free = (x > 0 and (grid[y + 1, x - 1] == 0 or grid[y + 1, x - 1] == MATERIAL_WATER))
+                        dr_free = (x < W - 1 and (grid[y + 1, x + 1] == 0 or grid[y + 1, x + 1] == MATERIAL_WATER))
+                        if (dl_free or dr_free) and random.random() < 0.10:
+                            nx = (x - 1) if (dl_free and (not dr_free or random.random() < 0.5)) else (x + 1)
+                            target_val = grid[y + 1, nx]
+                            grid[y + 1, nx] = MATERIAL_ASH
+                            grid[y, x] = MATERIAL_WATER if target_val == MATERIAL_WATER else 0
+                            moved = True
+
+                # ================= 6. NORMAL SAND DYNAMICS (BUOYANCY) =================
+                else:
+                    below = grid[y + 1, x]
+                    if below == 0:
+                        grid[y + 1, x] = mat
+                        grid[y, x] = 0
+                        moved = True
+                    elif below == MATERIAL_WATER:
+                        # Sand sinks down, liquid water floats up!
+                        grid[y + 1, x] = mat
+                        grid[y, x] = MATERIAL_WATER
+                        moved = True
+                    else:
+                        dl_ok = (x > 0 and (grid[y + 1, x - 1] == 0 or grid[y + 1, x - 1] == MATERIAL_WATER))
+                        dr_ok = (x < W - 1 and (grid[y + 1, x + 1] == 0 or grid[y + 1, x + 1] == MATERIAL_WATER))
+                        if (dl_ok or dr_ok) and random.random() < 0.08:
+                            nx = (x - 1) if (dl_ok and (not dr_ok or random.random() < 0.5)) else (x + 1)
+                            target_val = grid[y + 1, nx]
+                            grid[y + 1, nx] = mat
+                            grid[y, x] = MATERIAL_WATER if target_val == MATERIAL_WATER else 0
                             moved = True
 
         return moved
@@ -267,7 +652,7 @@ class SandEngine:
         # Check each color currently on board
         unique_colors = np.unique(grid)
         for color in unique_colors:
-            if color == 0:
+            if color in (0, MATERIAL_STEAM, MATERIAL_TOXIC_GAS):
                 continue
 
             # Find all grains of this color touching the left wall
@@ -329,7 +714,14 @@ class SandEngine:
                 'color': int,
                 'combo': int,
                 'points': int,
-                'landed': bool
+                'landed': bool,
+                'water_frozen': bool,
+                'frozen_coords': list,
+                'ice_melted': bool,
+                'melted_coords': list,
+                'is_water_clear': bool,
+                'is_ice_clear': bool,
+                'is_fire_clear': bool
             }
         """
         events = {
@@ -340,13 +732,29 @@ class SandEngine:
             'color': 0,
             'combo': 0,
             'points': 0,
-            'landed': False
+            'landed': False,
+            'water_frozen': False,
+            'frozen_coords': [],
+            'ice_melted': False,
+            'melted_coords': [],
+            'steam_created': False,
+            'steam_coords': [],
+            'toxic_cloud_created': False,
+            'toxic_coords': [],
+            'sand_burned': False,
+            'burned_coords': [],
+            'fire_extinguished': False,
+            'extinguished_coords': [],
+            'is_water_clear': False,
+            'is_ice_clear': False,
+            'is_fire_clear': False,
+            'is_ash_clear': False
         }
 
         if self.game_over or self.paused:
             return events
 
-        # 1. Simulate sand physics sub-steps
+        # 1. Simulate sand/fluid physics sub-steps
         any_sand_moved = False
         for _ in range(PHYSICS_SUBSTEPS):
             if self.update_physics():
@@ -360,7 +768,8 @@ class SandEngine:
             # Award points with combo multiplier
             self.combo += 1
             combo_mult = COMBO_MULTIPLIER_BASE ** (self.combo - 1)
-            points = int((grains_count * POINTS_PER_GRAIN + bands_count * POINTS_PER_BAND) * combo_mult * self.level)
+            bonus_per_band = POINTS_PER_BAND * 2 if cleared_color in (MATERIAL_WATER, MATERIAL_ICE, MATERIAL_FIRE, MATERIAL_ASH) else POINTS_PER_BAND
+            points = int((grains_count * POINTS_PER_GRAIN + bands_count * bonus_per_band) * combo_mult * self.level)
             self.score += points
             if self.score > self.high_score:
                 self.high_score = self.score
@@ -377,7 +786,11 @@ class SandEngine:
                 'coords': cleared_coords,
                 'color': cleared_color,
                 'combo': self.combo,
-                'points': points
+                'points': points,
+                'is_water_clear': (cleared_color == MATERIAL_WATER),
+                'is_ice_clear': (cleared_color == MATERIAL_ICE),
+                'is_fire_clear': (cleared_color == MATERIAL_FIRE),
+                'is_ash_clear': (cleared_color == MATERIAL_ASH)
             })
         elif not any_sand_moved and not self.is_sand_moving:
             # When all sand has completely settled, reset combo if no clear occurred
@@ -397,14 +810,64 @@ class SandEngine:
                 steps += 1
                 if self.active_piece.try_move(0, 1, self.grid):
                     self.lock_timer = 0
+                    # When ice block moves downwards, existing water in contact converts into ice!
+                    if self.active_piece.is_ice():
+                        for gy, gx, _ in self.active_piece.get_occupied_grains():
+                            for dy in (0, 1, 2):
+                                for dx in (-1, 0, 1):
+                                    ny, nx = gy + dy, gx + dx
+                                    if 0 <= ny < self.height and 0 <= nx < self.width:
+                                        if self.grid[ny, nx] == MATERIAL_WATER:
+                                            self.grid[ny, nx] = MATERIAL_ICE
+                                            self.last_frozen_coords.append((ny, nx))
                 else:
                     self.lock_timer += current_interval
-                    if self.lock_timer >= LOCK_DELAY_MS or self.is_soft_dropping:
+                    # If fire piece hits water directly below, extinguish instantly
+                    fire_hit_water = False
+                    if self.active_piece.is_fire():
+                        for gy, gx, _ in self.active_piece.get_occupied_grains():
+                            ny, nx = gy + 1, gx
+                            if 0 <= ny < self.height and 0 <= nx < self.width:
+                                if self.grid[ny, nx] == MATERIAL_WATER:
+                                    fire_hit_water = True
+                                    break
+                    if self.lock_timer >= LOCK_DELAY_MS or self.is_soft_dropping or fire_hit_water:
                         self.lock_active_piece()
                         events['landed'] = True
                     break
 
             if self.gravity_timer > current_interval * 3:
                 self.gravity_timer = 0
+
+        # Collect any frozen / melted / steam / toxic / burned events
+        if self.last_frozen_coords:
+            events['water_frozen'] = True
+            events['frozen_coords'] = list(set(self.last_frozen_coords))
+            self.last_frozen_coords.clear()
+
+        if self.last_melted_coords:
+            events['ice_melted'] = True
+            events['melted_coords'] = list(set(self.last_melted_coords))
+            self.last_melted_coords.clear()
+
+        if self.last_steam_coords:
+            events['steam_created'] = True
+            events['steam_coords'] = list(set(self.last_steam_coords))
+            self.last_steam_coords.clear()
+
+        if self.last_toxic_coords:
+            events['toxic_cloud_created'] = True
+            events['toxic_coords'] = list(set(self.last_toxic_coords))
+            self.last_toxic_coords.clear()
+
+        if self.last_burned_coords:
+            events['sand_burned'] = True
+            events['burned_coords'] = list(set(self.last_burned_coords))
+            self.last_burned_coords.clear()
+
+        if self.last_extinguished_coords:
+            events['fire_extinguished'] = True
+            events['extinguished_coords'] = list(set(self.last_extinguished_coords))
+            self.last_extinguished_coords.clear()
 
         return events

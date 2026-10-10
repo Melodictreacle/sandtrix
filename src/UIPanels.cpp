@@ -113,6 +113,12 @@ void PiecePreviewWidget::paintEvent(QPaintEvent*) {
         } else if (m_cachedPiece->isBomb()) {
             displayTitle = "TNT BOMB";
             titleCol = QColor("#FF4B4B");
+        } else if (m_cachedPiece->isIce()) {
+            displayTitle = "ICE";
+            titleCol = getIceColor();
+        } else if (m_cachedPiece->isFire()) {
+            displayTitle = "FIRE";
+            titleCol = getFireColor();
         }
     }
 
@@ -136,6 +142,10 @@ void PiecePreviewWidget::paintEvent(QPaintEvent*) {
         grainColor = getAcidColor();
     } else if (m_cachedPiece->isBomb()) {
         grainColor = getBombColor();
+    } else if (m_cachedPiece->isIce()) {
+        grainColor = getIceColor();
+    } else if (m_cachedPiece->isFire()) {
+        grainColor = getFireColor();
     } else {
         int colIdx = m_cachedPiece->getColorIdx();
         grainColor = m_palette.colors[colIdx % m_palette.colors.size()];

@@ -8,7 +8,9 @@ echo        SANDTRIX - Sand Tetris for Qt (C++)
 echo ========================================================
 echo.
 
-set "QT_DIR=C:\Qt\6.12.0\mingw_64"
+set "QT_DIR=C:\Qt\6.11.1\mingw_64"
+if not exist "%QT_DIR%\bin\qmake.exe" set "QT_DIR=C:\Qt\6.12.0\mingw_64"
+
 set "MINGW_DIR=C:\Qt\Tools\mingw1310_64"
 set "CMAKE_DIR=C:\Qt\Tools\CMake_64"
 set "NINJA_DIR=C:\Qt\Tools\Ninja"

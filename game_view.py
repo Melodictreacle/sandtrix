@@ -13,7 +13,7 @@ from PyQt6.QtGui import (
 from config import (
     BOARD_WIDTH, BOARD_HEIGHT, CELL_DISPLAY_SIZE, CANVAS_WIDTH, CANVAS_HEIGHT,
     DANGER_ROW, FRAME_TIME_MS, PALETTES, DEFAULT_PALETTE,
-    DAS_DELAY_MS, ARR_REPEAT_MS, MINO_SIZE
+    DAS_DELAY_MS, ARR_REPEAT_MS, MINO_SIZE, ELEMENT_COLORS
 )
 from sand_engine import SandEngine
 from particles import ParticleManager
@@ -59,11 +59,14 @@ class SandtrixCanvas(QWidget):
     def _rebuild_palette_lut(self):
         """Constructs an RGBA lookup array for NumPy array-to-QImage conversion."""
         raw_colors = self.palette_info["colors"]
-        lut = []
-        for c in raw_colors:
-            # Format RGBA
-            lut.append([c[0], c[1], c[2], c[3]])
-        self.palette_lut = np.array(lut, dtype=np.uint8)
+        lut = np.zeros((64, 4), dtype=np.uint8)
+        for idx, c in enumerate(raw_colors):
+            lut[idx] = [c[0], c[1], c[2], c[3]]
+        # Assign distinct elemental colors
+        for mat_id, c in ELEMENT_COLORS.items():
+            if mat_id < 64:
+                lut[mat_id] = [c[0], c[1], c[2], c[3]]
+        self.palette_lut = lut
 
     def set_palette(self, palette_name: str):
         if palette_name in PALETTES:
@@ -97,10 +100,70 @@ class SandtrixCanvas(QWidget):
         if events['landed']:
             self.audio.play_lock()
 
+        # Handle elemental reactions
+        if events.get('water_frozen'):
+            f_coords = events.get('frozen_coords', [])
+            pixel_coords = [(cx * CELL_DISPLAY_SIZE, cy * CELL_DISPLAY_SIZE) for cy, cx in f_coords]
+            self.particles.add_freeze_crystals(pixel_coords)
+            self.audio.play_freeze()
+            mid_y = int(np.mean([cy for cy, _ in f_coords])) * CELL_DISPLAY_SIZE if f_coords else 200
+            self.particles.add_floating_text(
+                CANVAS_WIDTH // 2 - 50, mid_y, "FROST FREEZE!", QColor(153, 230, 255), font_size=15
+            )
+
+        if events.get('ice_melted') or events.get('steam_created'):
+            m_coords = events.get('melted_coords', []) + events.get('steam_coords', [])
+            pixel_coords = [(cx * CELL_DISPLAY_SIZE, cy * CELL_DISPLAY_SIZE) for cy, cx in m_coords]
+            self.particles.add_steam_fizz(pixel_coords)
+            self.particles.add_steam_cloud(pixel_coords)
+            self.audio.play_steam()
+            mid_y = int(np.mean([cy for cy, _ in m_coords])) * CELL_DISPLAY_SIZE if m_coords else 200
+            self.particles.add_floating_text(
+                CANVAS_WIDTH // 2 - 60, mid_y, "ICE MELTED + STEAM!", QColor(225, 235, 250), font_size=15
+            )
+
+        if events.get('toxic_cloud_created'):
+            t_coords = events.get('toxic_coords', [])
+            pixel_coords = [(cx * CELL_DISPLAY_SIZE, cy * CELL_DISPLAY_SIZE) for cy, cx in t_coords]
+            self.particles.add_toxic_cloud(pixel_coords)
+            self.audio.play_toxic_gas()
+            self.particles.trigger_shake(4.0)
+            mid_y = int(np.mean([cy for cy, _ in t_coords])) * CELL_DISPLAY_SIZE if t_coords else 200
+            self.particles.add_floating_text(
+                CANVAS_WIDTH // 2 - 55, mid_y, "TOXIC CLOUD!", QColor(57, 255, 20), font_size=16
+            )
+
+        if events.get('sand_burned'):
+            b_coords = events.get('burned_coords', [])
+            pixel_coords = [(cx * CELL_DISPLAY_SIZE, cy * CELL_DISPLAY_SIZE) for cy, cx in b_coords]
+            self.particles.add_ash_embers(pixel_coords)
+            self.audio.play_scorch()
+            mid_y = int(np.mean([cy for cy, _ in b_coords])) * CELL_DISPLAY_SIZE if b_coords else 200
+            self.particles.add_floating_text(
+                CANVAS_WIDTH // 2 - 65, mid_y, "SAND BURNED TO ASH!", QColor(150, 155, 160), font_size=14
+            )
+
+        if events.get('fire_extinguished'):
+            e_coords = events.get('extinguished_coords', [])
+            pixel_coords = [(cx * CELL_DISPLAY_SIZE, cy * CELL_DISPLAY_SIZE) for cy, cx in e_coords]
+            self.particles.add_steam_fizz(pixel_coords)
+            self.particles.add_steam_cloud(pixel_coords)
+            self.audio.play_steam()
+            self.particles.trigger_shake(3.0)
+            mid_y = int(np.mean([cy for cy, _ in e_coords])) * CELL_DISPLAY_SIZE if e_coords else 200
+            self.particles.add_floating_text(
+                CANVAS_WIDTH // 2 - 65, mid_y, "FIRE EXTINGUISHED!", QColor(255, 140, 60), font_size=15
+            )
+
         if events['cleared']:
             # Line clear triggered!
             coords = events['coords']
-            col_tuple = self.palette_info["colors"][events['color']][:3]
+            clr_color = events['color']
+            if clr_color in ELEMENT_COLORS:
+                col_tuple = ELEMENT_COLORS[clr_color][:3]
+            else:
+                pal = self.palette_info["colors"]
+                col_tuple = pal[clr_color % len(pal)][:3]
             
             # Convert grain coordinates to canvas pixels
             pixel_coords = [(cx * CELL_DISPLAY_SIZE, cy * CELL_DISPLAY_SIZE) for cy, cx in coords]
@@ -111,18 +174,23 @@ class SandtrixCanvas(QWidget):
             combo = events['combo']
             pts = events['points']
             
-            if combo > 1:
-                self.particles.add_floating_text(
-                    CANVAS_WIDTH // 2 - 50, mid_y,
-                    f"COMBO x{combo}! +{pts}",
-                    QColor(*col_tuple), font_size=15
-                )
+            if events.get('is_water_clear'):
+                title = f"TIDAL WAVE! +{pts}"
+            elif events.get('is_ice_clear'):
+                title = f"FROST SHATTER! +{pts}"
+            elif events.get('is_fire_clear'):
+                title = f"FIRE STORM! +{pts}"
+            elif events.get('is_ash_clear'):
+                title = f"ASH PURGED! +{pts}"
+            elif combo > 1:
+                title = f"COMBO x{combo}! +{pts}"
             else:
-                self.particles.add_floating_text(
-                    CANVAS_WIDTH // 2 - 35, mid_y,
-                    f"+{pts}",
-                    QColor(*col_tuple), font_size=14
-                )
+                title = f"+{pts}"
+
+            self.particles.add_floating_text(
+                CANVAS_WIDTH // 2 - 55, mid_y,
+                title, QColor(*col_tuple), font_size=15
+            )
 
             self.particles.trigger_shake(3.0 + min(10.0, combo * 2.0))
             self.audio.play_clear(combo)
@@ -138,6 +206,8 @@ class SandtrixCanvas(QWidget):
         self.update()
 
     def keyPressEvent(self, event: QKeyEvent):
+        if event.isAutoRepeat():
+            return
         key = event.key()
 
         # Restart
@@ -213,6 +283,8 @@ class SandtrixCanvas(QWidget):
                 self.audio.play_move()
 
     def keyReleaseEvent(self, event: QKeyEvent):
+        if event.isAutoRepeat():
+            return
         key = event.key()
 
         if key in (Qt.Key.Key_Left, Qt.Key.Key_A):
@@ -261,6 +333,12 @@ class SandtrixCanvas(QWidget):
         painter.setPen(QPen(QColor(255, 60, 60, pulse_alpha), 1, Qt.PenStyle.DashLine))
         painter.drawLine(0, danger_y, CANVAS_WIDTH, danger_y)
 
+        def get_mat_rgb(c_idx):
+            if c_idx in ELEMENT_COLORS:
+                return ELEMENT_COLORS[c_idx][:3]
+            pal = self.palette_info["colors"]
+            return pal[c_idx % len(pal)][:3]
+
         # 4. Render Ghost Piece (Dotted / Translucent Silhouette)
         if self.engine.active_piece and not self.engine.game_over:
             piece = self.engine.active_piece
@@ -268,7 +346,7 @@ class SandtrixCanvas(QWidget):
             
             # Don't draw ghost if piece is already at landing spot
             if ghost_y != piece.y:
-                ghost_color_tuple = self.palette_info["colors"][piece.color_idx][:3]
+                ghost_color_tuple = get_mat_rgb(piece.color_idx)
                 ghost_color = QColor(*ghost_color_tuple)
                 ghost_color.setAlpha(65)
                 painter.setPen(Qt.PenStyle.NoPen)
@@ -283,7 +361,7 @@ class SandtrixCanvas(QWidget):
         # 5. Render Active Falling Tetromino
         if self.engine.active_piece and not self.engine.game_over:
             piece = self.engine.active_piece
-            piece_color_tuple = self.palette_info["colors"][piece.color_idx][:3]
+            piece_color_tuple = get_mat_rgb(piece.color_idx)
             piece_color = QColor(*piece_color_tuple)
             
             painter.setPen(Qt.PenStyle.NoPen)

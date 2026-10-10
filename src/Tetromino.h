@@ -27,6 +27,8 @@ public:
     bool isWater() const { return m_colorIdx == MATERIAL_WATER; }
     bool isAcid() const { return m_colorIdx == MATERIAL_ACID; }
     bool isBomb() const { return m_colorIdx == MATERIAL_BOMB; }
+    bool isIce() const { return m_colorIdx == MATERIAL_ICE; }
+    bool isFire() const { return m_colorIdx == MATERIAL_FIRE; }
     QString getElementName() const;
     void setColorIdx(uint8_t c) { m_colorIdx = c; }
 

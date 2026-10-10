@@ -34,7 +34,7 @@ GRAVITY_INTERVALS = {
 SOFT_DROP_GRAVITY_MS = 4   # Fast falling speed when holding Down/S
 
 # Lock delay: time piece can rest on ground/sand before locking into sand
-LOCK_DELAY_MS = 0
+LOCK_DELAY_MS = 140
 
 # DAS (Delayed Auto Shift) and ARR (Auto Repeat Rate)
 DAS_DELAY_MS = 140
@@ -47,6 +47,28 @@ PHYSICS_SUBSTEPS = 2
 POINTS_PER_GRAIN = 5
 POINTS_PER_BAND = 400
 COMBO_MULTIPLIER_BASE = 1.5
+
+# Special Elemental Material IDs
+MATERIAL_WATER     = 50   # Liquid: flows horizontally, buoyant
+MATERIAL_ACID      = 51   # Acid: dissolves sand directly below it
+MATERIAL_BOMB      = 52   # TNT Bomb: explodes crater
+MATERIAL_ICE       = 53   # Ice: frozen water, freezes water on downward movement
+MATERIAL_FIRE      = 54   # Fire: blazing heat, melts ice, ignites acid, burns sand
+MATERIAL_STEAM     = 55   # Steam: light vapor gas, rises upward, dissipates after few seconds
+MATERIAL_TOXIC_GAS = 56   # Toxic Cloud: green vapor from fire + acid, rises & dissipates
+MATERIAL_ASH       = 57   # Ash: burnt sand residue, charcoal ash gray powder
+
+# Distinct Elemental Colors (RGBA)
+ELEMENT_COLORS = {
+    MATERIAL_WATER:     (0, 210, 215, 255),    # Turquoise Aqua (#00D2D7)
+    MATERIAL_ACID:      (205, 235, 45, 255),   # Chartreuse Lime (#CDEB2D)
+    MATERIAL_BOMB:      (255, 75, 75, 255),    # TNT Red (#FF4B4B)
+    MATERIAL_ICE:       (153, 230, 255, 255),  # Glacial Frost Blue (#99E6FF)
+    MATERIAL_FIRE:      (255, 69, 0, 255),     # Blazing Fiery Orange (#FF4500)
+    MATERIAL_STEAM:     (225, 235, 245, 220),  # Steam Mist White/Blue (#E1EBF5)
+    MATERIAL_TOXIC_GAS: (57, 255, 20, 240),    # Radioactive Toxic Green (#39FF14)
+    MATERIAL_ASH:       (138, 144, 150, 255),  # Charcoal Ash Gray (#8A9096)
+}
 
 # High Scores file path
 HIGHSCORE_FILE = os.path.join(os.path.dirname(__file__), "highscores.json")

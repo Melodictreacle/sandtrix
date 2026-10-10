@@ -1,9 +1,42 @@
-"""Particle effects, screen shake, and floating score popups for Sandtrix."""
-
+import math
 import random
 from typing import List, Tuple
 from PyQt6.QtGui import QPainter, QColor, QFont
 from PyQt6.QtCore import Qt, QPointF
+
+
+class CloudParticle:
+    """A soft, billowing vapor/smoke cloud particle that drifts and dissipates after a few seconds."""
+
+    def __init__(self, x: float, y: float, color: Tuple[int, int, int], max_life: int = 150, initial_size: float = 8.0, growth: float = 0.06):
+        self.x = x
+        self.y = y
+        self.vx = random.uniform(-0.55, 0.55)
+        self.vy = random.uniform(-0.85, -0.25)  # rises buoyantly
+        self.color = color
+        self.max_life = max_life  # ~120 to 180 frames = 2 to 3 seconds at 60 FPS
+        self.life = max_life
+        self.size = initial_size
+        self.growth = growth
+        self.friction = 0.99
+
+    def update(self) -> bool:
+        self.x += self.vx
+        self.y += self.vy
+        self.vx *= self.friction
+        self.size += self.growth
+        self.life -= 1
+        return self.life > 0
+
+    def draw(self, painter: QPainter):
+        progress = self.life / self.max_life
+        # Smooth bell fade: rises into visible cloud, then fades away after a few seconds
+        alpha = int(170.0 * math.sin(progress * math.pi * 0.5))
+        c = QColor(self.color[0], self.color[1], self.color[2], max(0, min(255, alpha)))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(c)
+        r = int(self.size)
+        painter.drawEllipse(int(self.x - r * 0.5), int(self.y - r * 0.5), r, r)
 
 
 class SparkParticle:
@@ -87,6 +120,7 @@ class ParticleManager:
 
     def __init__(self):
         self.particles: List[SparkParticle] = []
+        self.clouds: List[CloudParticle] = []
         self.floating_texts: List[FloatingText] = []
         self.shake_intensity = 0.0
 
@@ -115,6 +149,92 @@ class ParticleManager:
     def add_floating_text(self, x: float, y: float, text: str, color: QColor, font_size: int = 14):
         self.floating_texts.append(FloatingText(x, y, text, color, font_size=font_size))
 
+    def add_freeze_crystals(self, pixel_coords: List[Tuple[float, float]], count: int = 40):
+        """Spawns glittering crystalline frost particles when water freezes into ice."""
+        if not pixel_coords:
+            return
+        sample_step = max(1, len(pixel_coords) // count)
+        for i in range(0, len(pixel_coords), sample_step):
+            px, py = pixel_coords[i]
+            p = SparkParticle(px + random.uniform(-3, 3), py + random.uniform(-3, 3), (180, 240, 255), is_bright=True)
+            p.vx = random.uniform(-1.5, 1.5)
+            p.vy = random.uniform(-1.8, 0.2)
+            p.gravity = 0.04
+            p.max_life = 35
+            p.life = 35
+            p.size = 2.4
+            self.particles.append(p)
+
+    def add_steam_fizz(self, pixel_coords: List[Tuple[float, float]], count: int = 40):
+        """Spawns rising steam puffs and vapor when fire melts ice."""
+        if not pixel_coords:
+            return
+        sample_step = max(1, len(pixel_coords) // count)
+        for i in range(0, len(pixel_coords), sample_step):
+            px, py = pixel_coords[i]
+            # Soft whitish-gray vapor particle
+            col = random.choice([(230, 240, 255), (255, 200, 160), (220, 220, 230)])
+            p = SparkParticle(px + random.uniform(-4, 4), py + random.uniform(-4, 4), col)
+            p.vx = random.uniform(-0.8, 0.8)
+            p.vy = random.uniform(-2.2, -0.6)  # rising vapor
+            p.gravity = -0.03  # buoyant upward drift
+            p.friction = 0.98
+            p.max_life = 35
+            p.life = 35
+            p.size = 3.0
+            self.particles.append(p)
+
+    def add_steam_cloud(self, pixel_coords: List[Tuple[float, float]], count: int = 35):
+        """Spawns billowing white steam cloud puffs that linger, rise, and disappear after a few seconds."""
+        if not pixel_coords:
+            return
+        sample_step = max(1, len(pixel_coords) // count)
+        for i in range(0, len(pixel_coords), sample_step):
+            px, py = pixel_coords[i]
+            col = random.choice([(230, 240, 255), (240, 245, 255), (210, 225, 240)])
+            life = random.randint(120, 160)  # ~2.0 to 2.6 seconds
+            self.clouds.append(CloudParticle(
+                px + random.uniform(-8, 8), py + random.uniform(-6, 6),
+                col, max_life=life, initial_size=random.uniform(7.0, 13.0), growth=random.uniform(0.04, 0.08)
+            ))
+
+    def add_toxic_cloud(self, pixel_coords: List[Tuple[float, float]], count: int = 40):
+        """Spawns glowing green toxic cloud puffs when fire meets acid, disappearing after a few seconds."""
+        if not pixel_coords:
+            return
+        sample_step = max(1, len(pixel_coords) // count)
+        for i in range(0, len(pixel_coords), sample_step):
+            px, py = pixel_coords[i]
+            col = random.choice([(57, 255, 20), (80, 240, 45), (120, 255, 70), (45, 215, 35)])
+            life = random.randint(130, 180)  # ~2.2 to 3.0 seconds
+            self.clouds.append(CloudParticle(
+                px + random.uniform(-8, 8), py + random.uniform(-6, 6),
+                col, max_life=life, initial_size=random.uniform(8.0, 15.0), growth=random.uniform(0.05, 0.09)
+            ))
+            # Also add a few fiery-acidic sparks
+            if random.random() < 0.3:
+                spk = SparkParticle(px, py, (200, 255, 50))
+                spk.vy = random.uniform(-2.5, -0.8)
+                self.particles.append(spk)
+
+    def add_ash_embers(self, pixel_coords: List[Tuple[float, float]], count: int = 35):
+        """Spawns scorched ash flakes when sand burns to ash (pure ash gray tones, no red embers)."""
+        if not pixel_coords:
+            return
+        sample_step = max(1, len(pixel_coords) // count)
+        for i in range(0, len(pixel_coords), sample_step):
+            px, py = pixel_coords[i]
+            # Charcoal gray & soot ash flakes (pure gray tones, no red/orange pixels)
+            ash_col = random.choice([(110, 115, 120), (140, 145, 150), (85, 90, 95), (160, 165, 170)])
+            ash = SparkParticle(px + random.uniform(-4, 4), py + random.uniform(-4, 4), ash_col)
+            ash.vx = random.uniform(-0.6, 0.6)
+            ash.vy = random.uniform(-1.2, 0.2)
+            ash.gravity = 0.02
+            ash.max_life = 40
+            ash.life = 40
+            ash.size = random.uniform(2.0, 3.0)
+            self.particles.append(ash)
+
     def trigger_shake(self, intensity: float = 6.0):
         self.shake_intensity = max(self.shake_intensity, intensity)
 
@@ -123,6 +243,7 @@ class ParticleManager:
         Updates all particles and shake. Returns (shake_offset_x, shake_offset_y).
         """
         self.particles = [p for p in self.particles if p.update()]
+        self.clouds = [c for c in self.clouds if c.update()]
         self.floating_texts = [t for t in self.floating_texts if t.update()]
 
         # Compute shake offset
@@ -138,6 +259,8 @@ class ParticleManager:
         return offset_x, offset_y
 
     def draw(self, painter: QPainter):
+        for c in self.clouds:
+            c.draw(painter)
         for p in self.particles:
             p.draw(painter)
         for t in self.floating_texts:
@@ -145,5 +268,6 @@ class ParticleManager:
 
     def clear(self):
         self.particles.clear()
+        self.clouds.clear()
         self.floating_texts.clear()
         self.shake_intensity = 0.0

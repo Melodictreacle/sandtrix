@@ -11,9 +11,9 @@
 
 namespace {
 const std::vector<std::pair<int, int>> BFS_NEIGHBORS = {
-    {-1, -1}, {-1, 0}, {-1, 1},
-    { 0, -1},          { 0, 1},
-    { 1, -1}, { 1, 0}, { 1, 1}
+    {-1, 0},
+    { 0, -1}, { 0, 1},
+    { 1, 0}
 };
 
 int getGravityInterval(int level) {
@@ -41,7 +41,7 @@ SandEngine::SandEngine(int numColors, bool enableElements, int startLevel, GameM
       m_linesCleared(0),
       m_combo(0),
       m_gameOver(false),
-      m_paused(false),
+      m_paused(true),
       m_randomizer(numColors, enableElements && (mode == GameMode::Sandtrix), mode == GameMode::Mystery || mode == GameMode::MysteryClassic),
       m_canHold(true),
       m_gravityTimer(0),
@@ -131,6 +131,13 @@ void SandEngine::reset() {
 
     m_stats = RunStats();
     m_stats.lineGoal = m_lineGoal;
+
+    m_lastFrozenCoords.clear();
+    m_lastMeltedCoords.clear();
+    m_lastSteamCoords.clear();
+    m_lastToxicCoords.clear();
+    m_lastBurnedCoords.clear();
+    m_lastExtinguishedCoords.clear();
 
     m_randomizer = BagRandomizer(m_numColors, m_enableElements && (m_gameMode == GameMode::Sandtrix), isMystery());
     m_nextQueue.clear();
@@ -276,14 +283,37 @@ bool SandEngine::holdCurrentPiece() {
 
 bool SandEngine::movePiece(int dx) {
     if (m_activePiece && !m_gameOver && !m_paused) {
-        return m_activePiece->tryMove(dx, 0, m_grid);
+        if (m_activePiece->tryMove(dx, 0, m_grid)) {
+            m_lockTimer = 0;
+            return true;
+        }
+        // If full step is blocked by an obstacle closer than dx, slide flush against it
+        int dir = (dx > 0) ? 1 : -1;
+        int absDx = std::abs(dx);
+        for (int step = absDx - 1; step >= 1; --step) {
+            if (m_activePiece->tryMove(step * dir, 0, m_grid)) {
+                m_lockTimer = 0;
+                return true;
+            }
+        }
+        // Allow step-up (1 or 2 grains) over minor sand grain roughness on the floor
+        for (int dy = -1; dy >= -2; --dy) {
+            if (m_activePiece->tryMove(dx, dy, m_grid)) {
+                m_lockTimer = 0;
+                return true;
+            }
+        }
     }
     return false;
 }
 
 bool SandEngine::rotatePiece(int direction) {
     if (m_activePiece && !m_gameOver && !m_paused) {
-        return m_activePiece->tryRotate(direction, m_grid);
+        bool rot = m_activePiece->tryRotate(direction, m_grid);
+        if (rot) {
+            m_lockTimer = 0;
+        }
+        return rot;
     }
     return false;
 }
@@ -297,6 +327,23 @@ bool SandEngine::hardDrop(int& outX, int& outY, std::vector<std::pair<int, int>>
     m_activePiece->setY(ghostY);
     outX = m_activePiece->getX();
     outY = ghostY;
+
+    // When ice block moves downwards, existing water in contact converts into ice
+    if (m_activePiece->isIce()) {
+        static const int dOffsets[6][2] = {{1, 0}, {2, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}};
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            for (const auto& d : dOffsets) {
+                int ny = g.y + d[0];
+                int nx = g.x + d[1];
+                if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                    if (m_grid[ny * BOARD_WIDTH + nx] == MATERIAL_WATER) {
+                        m_grid[ny * BOARD_WIDTH + nx] = MATERIAL_ICE;
+                        m_lastFrozenCoords.push_back({ny, nx});
+                    }
+                }
+            }
+        }
+    }
 
     outImpactCoords.clear();
     for (const auto& g : m_activePiece->getOccupiedGrains()) {
@@ -323,13 +370,118 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
     bool isWater = m_activePiece->isWater();
     bool isAcid = m_activePiece->isAcid();
     bool isBomb = m_activePiece->isBomb();
+    bool isIce = m_activePiece->isIce();
+    bool isFire = m_activePiece->isFire();
     if (outEvent) {
         outEvent->landedWater = isWater;
         outEvent->landedAcid = isAcid;
         outEvent->landedBomb = isBomb;
+        outEvent->landedIce = isIce;
+        outEvent->landedFire = isFire;
     }
 
-    if (isBomb) {
+    if (isIce) {
+        static const int dOffsets[6][2] = {{1, 0}, {2, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}};
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            for (const auto& d : dOffsets) {
+                int ny = g.y + d[0];
+                int nx = g.x + d[1];
+                if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                    if (m_grid[ny * BOARD_WIDTH + nx] == MATERIAL_WATER) {
+                        m_grid[ny * BOARD_WIDTH + nx] = MATERIAL_ICE;
+                        m_lastFrozenCoords.push_back({ny, nx});
+                    }
+                }
+            }
+        }
+    }
+
+    bool hitWater = false;
+    bool hitIce = false;
+    bool hitAcid = false;
+    bool hitSand = false;
+    std::vector<std::pair<int, int>> contactAcid;
+    std::vector<std::pair<int, int>> contactSand;
+
+    if (isFire) {
+        // Check if fire piece landed on or touches other materials
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            static const int dCoords[7][2] = {{1, 0}, {0, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}};
+            for (const auto& d : dCoords) {
+                int ny = g.y + d[0];
+                int nx = g.x + d[1];
+                if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                    uint8_t val = m_grid[ny * BOARD_WIDTH + nx];
+                    if (val == MATERIAL_WATER) {
+                        hitWater = true;
+                    } else if (val == MATERIAL_ICE) {
+                        hitIce = true;
+                    } else if (val == MATERIAL_ACID) {
+                        hitAcid = true;
+                        contactAcid.push_back({ny, nx});
+                    } else if ((val >= 1 && val <= 10) || val == MATERIAL_ASH) {
+                        hitSand = true;
+                        contactSand.push_back({ny, nx});
+                    }
+                }
+            }
+        }
+    }
+
+    if (isFire && hitWater) {
+        // 0. Fire on Water: When fire falls down upon water, fire is totally destroyed!
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            if (g.y >= 0 && g.y < BOARD_HEIGHT && g.x >= 0 && g.x < BOARD_WIDTH) {
+                m_lastExtinguishedCoords.push_back({g.y, g.x});
+            }
+        }
+        // Fire is completely erased/extinguished: none of its grains are placed on the grid
+    } else if (isFire && hitIce) {
+        // 1. Fire on Ice: Converts ice to water AND fire to steam (steam disappears after few seconds)
+        for (int i = 0; i < BOARD_WIDTH * BOARD_HEIGHT; ++i) {
+            if (m_grid[i] == MATERIAL_ICE) {
+                m_grid[i] = MATERIAL_WATER;
+                m_lastMeltedCoords.push_back({i / BOARD_WIDTH, i % BOARD_WIDTH});
+            }
+        }
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            if (g.y >= 0 && g.y < BOARD_HEIGHT && g.x >= 0 && g.x < BOARD_WIDTH) {
+                m_grid[g.y * BOARD_WIDTH + g.x] = MATERIAL_STEAM;
+                m_lastSteamCoords.push_back({g.y, g.x});
+            }
+        }
+    } else if (isFire && hitAcid) {
+        // 2. Fire on Acid: Creates green toxic cloud (disappears after few seconds)
+        for (const auto& pt : contactAcid) {
+            m_grid[pt.first * BOARD_WIDTH + pt.second] = MATERIAL_TOXIC_GAS;
+            m_lastToxicCoords.push_back(pt);
+        }
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            if (g.y >= 0 && g.y < BOARD_HEIGHT && g.x >= 0 && g.x < BOARD_WIDTH) {
+                m_grid[g.y * BOARD_WIDTH + g.x] = MATERIAL_TOXIC_GAS;
+                m_lastToxicCoords.push_back({g.y, g.x});
+            }
+        }
+    } else if (isFire && hitSand) {
+        // 3. Fire on Sand: Portion of sands burn and convert to ash; fire piece burns entirely to ash (no red pixels remain!)
+        static std::random_device rd;
+        static std::mt19937 rng(rd());
+        std::uniform_real_distribution<float> burnDist(0.0f, 1.0f);
+
+        for (const auto& pt : contactSand) {
+            if (burnDist(rng) < 0.60f) {
+                m_grid[pt.first * BOARD_WIDTH + pt.second] = MATERIAL_ASH;
+                m_lastBurnedCoords.push_back(pt);
+            }
+        }
+        // Fire piece settles entirely as ash residue (100% ash, 0% red fire)
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            if (g.y >= 0 && g.y < BOARD_HEIGHT && g.x >= 0 && g.x < BOARD_WIDTH) {
+                m_grid[g.y * BOARD_WIDTH + g.x] = MATERIAL_ASH;
+                m_lastBurnedCoords.push_back({g.y, g.x});
+            }
+        }
+    } else if (isBomb) {
         int cx = m_activePiece->getX() + m_activePiece->getMaskWidth() / 2;
         int cy = m_activePiece->getY() + m_activePiece->getMaskHeight() / 2;
         std::vector<std::pair<int, int>> crater;
@@ -351,7 +503,10 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
     } else {
         for (const auto& g : m_activePiece->getOccupiedGrains()) {
             if (g.y >= 0 && g.y < BOARD_HEIGHT && g.x >= 0 && g.x < BOARD_WIDTH) {
-                m_grid[g.y * BOARD_WIDTH + g.x] = g.color;
+                uint8_t cur = m_grid[g.y * BOARD_WIDTH + g.x];
+                if (cur == 0 || cur == MATERIAL_STEAM || cur == MATERIAL_TOXIC_GAS) {
+                    m_grid[g.y * BOARD_WIDTH + g.x] = g.color;
+                }
             }
         }
     }
@@ -363,11 +518,12 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
     m_isSoftDropping = false;
     m_isSandMoving = !isClassicTetris();
 
-    // Check danger ceiling breach
+    // Check danger ceiling breach (ignoring rising atmospheric gases)
     int dangerLimit = isClassicTetris() ? (4 + MINO_SIZE) : DANGER_ROW;
     for (int r = 0; r < dangerLimit; ++r) {
         for (int c = 0; c < BOARD_WIDTH; ++c) {
-            if (m_grid[r * BOARD_WIDTH + c] > 0) {
+            uint8_t val = m_grid[r * BOARD_WIDTH + c];
+            if (val > 0 && val != MATERIAL_STEAM && val != MATERIAL_TOXIC_GAS) {
                 m_gameOver = true;
                 if (m_score > m_highScore) {
                     m_highScore = m_score;
@@ -385,37 +541,103 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
     bool moved = false;
     static std::random_device rd;
     static std::mt19937 g(rd());
+    std::uniform_real_distribution<float> prob(0.0f, 1.0f);
 
     std::vector<int> colXs;
     colXs.reserve(BOARD_WIDTH);
 
-    // Process from bottom row up
+    // ==================== PASS 1: RISING GASES (STEAM & TOXIC CLOUD) ====================
+    // Process top-down so gas rises at most 1 grain per sub-step
+    for (int y = 0; y < BOARD_HEIGHT; ++y) {
+        colXs.clear();
+        for (int x = 0; x < BOARD_WIDTH; ++x) {
+            uint8_t c = m_grid[y * BOARD_WIDTH + x];
+            if (c == MATERIAL_STEAM || c == MATERIAL_TOXIC_GAS) {
+                colXs.push_back(x);
+            }
+        }
+        if (colXs.empty()) continue;
+        std::shuffle(colXs.begin(), colXs.end(), g);
+
+        for (int x : colXs) {
+            uint8_t gmat = m_grid[y * BOARD_WIDTH + x];
+            if (gmat != MATERIAL_STEAM && gmat != MATERIAL_TOXIC_GAS) continue;
+
+            // Spontaneous dissipation over a few seconds (~2-3s half life)
+            float dissRate = (gmat == MATERIAL_STEAM) ? 0.010f : 0.012f;
+            if (prob(g) < dissRate) {
+                m_grid[y * BOARD_WIDTH + x] = 0;
+                moved = true;
+                continue;
+            }
+
+            // Dissipate into open air at ceiling
+            if (y == 0) {
+                m_grid[y * BOARD_WIDTH + x] = 0;
+                moved = true;
+                continue;
+            }
+
+            // Buoyant upward motion
+            if (m_grid[(y - 1) * BOARD_WIDTH + x] == 0) {
+                m_grid[(y - 1) * BOARD_WIDTH + x] = gmat;
+                m_grid[y * BOARD_WIDTH + x] = 0;
+                moved = true;
+            } else {
+                bool ulEmpty = (x > 0 && m_grid[(y - 1) * BOARD_WIDTH + (x - 1)] == 0);
+                bool urEmpty = (x < BOARD_WIDTH - 1 && m_grid[(y - 1) * BOARD_WIDTH + (x + 1)] == 0);
+                if (ulEmpty && urEmpty) {
+                    int nx = (std::uniform_int_distribution<int>(0, 1)(g) == 0) ? (x - 1) : (x + 1);
+                    m_grid[(y - 1) * BOARD_WIDTH + nx] = gmat;
+                    m_grid[y * BOARD_WIDTH + x] = 0;
+                    moved = true;
+                } else if (ulEmpty) {
+                    m_grid[(y - 1) * BOARD_WIDTH + (x - 1)] = gmat;
+                    m_grid[y * BOARD_WIDTH + x] = 0;
+                    moved = true;
+                } else if (urEmpty) {
+                    m_grid[(y - 1) * BOARD_WIDTH + (x + 1)] = gmat;
+                    m_grid[y * BOARD_WIDTH + x] = 0;
+                    moved = true;
+                } else {
+                    bool lEmpty = (x > 0 && m_grid[y * BOARD_WIDTH + (x - 1)] == 0);
+                    bool rEmpty = (x < BOARD_WIDTH - 1 && m_grid[y * BOARD_WIDTH + (x + 1)] == 0);
+                    if ((lEmpty || rEmpty) && prob(g) < 0.25f) {
+                        int nx = (lEmpty && (!rEmpty || prob(g) < 0.5f)) ? (x - 1) : (x + 1);
+                        m_grid[y * BOARD_WIDTH + nx] = gmat;
+                        m_grid[y * BOARD_WIDTH + x] = 0;
+                        moved = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // ==================== PASS 2: FALLING / SETTLING MATTER ====================
+    // Process from bottom row up for gravity
     for (int y = BOARD_HEIGHT - 2; y >= 0; --y) {
         colXs.clear();
         for (int x = 0; x < BOARD_WIDTH; ++x) {
-            if (m_grid[y * BOARD_WIDTH + x] > 0) {
+            uint8_t c = m_grid[y * BOARD_WIDTH + x];
+            if (c > 0 && c != MATERIAL_STEAM && c != MATERIAL_TOXIC_GAS) {
                 colXs.push_back(x);
             }
         }
 
         if (colXs.empty()) continue;
-
         std::shuffle(colXs.begin(), colXs.end(), g);
 
         for (int x : colXs) {
             uint8_t mat = m_grid[y * BOARD_WIDTH + x];
-            if (mat == 0) continue;
+            if (mat == 0 || mat == MATERIAL_STEAM || mat == MATERIAL_TOXIC_GAS) continue;
 
             // ==================== 1. WATER (FLUID) DYNAMICS ====================
             if (mat == MATERIAL_WATER) {
-                // A. Straight Down
                 if (m_grid[(y + 1) * BOARD_WIDTH + x] == 0) {
                     m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_WATER;
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
-                }
-                // B. Down Diagonals
-                else {
+                } else {
                     bool dlEmpty = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0);
                     bool drEmpty = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0);
 
@@ -432,9 +654,7 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
                         m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_WATER;
                         m_grid[y * BOARD_WIDTH + x] = 0;
                         moved = true;
-                    }
-                    // C. Lateral Flow (Fluid seeks flat surface)
-                    else {
+                    } else {
                         bool leftEmpty = (x > 0 && m_grid[y * BOARD_WIDTH + (x - 1)] == 0);
                         bool rightEmpty = (x < BOARD_WIDTH - 1 && m_grid[y * BOARD_WIDTH + (x + 1)] == 0);
 
@@ -457,13 +677,12 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
             }
             // ==================== 2. ACID (CORROSION) DYNAMICS ====================
             else if (mat == MATERIAL_ACID) {
-                // A. Straight Down
                 uint8_t below = m_grid[(y + 1) * BOARD_WIDTH + x];
                 if (below == 0) {
                     m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ACID;
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
-                } else if (below != MATERIAL_ACID && below != 0) {
+                } else if (below != MATERIAL_ACID && below != MATERIAL_WATER && below != MATERIAL_FIRE && below != MATERIAL_ICE && below != MATERIAL_TOXIC_GAS) {
                     m_grid[(y + 1) * BOARD_WIDTH + x] = 0;
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     if (outAcidCorroded) outAcidCorroded->push_back({y + 1, x});
@@ -471,23 +690,163 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
                 } else {
                     bool dlEmpty = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0);
                     bool drEmpty = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0);
-                    if (dlEmpty && drEmpty) {
-                        int nx = (std::uniform_int_distribution<int>(0, 1)(g) == 0) ? (x - 1) : (x + 1);
+                    if ((dlEmpty || drEmpty) && prob(g) < 0.25f) {
+                        int nx = (dlEmpty && (!drEmpty || prob(g) < 0.5f)) ? (x - 1) : (x + 1);
                         m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_ACID;
-                        m_grid[y * BOARD_WIDTH + x] = 0;
-                        moved = true;
-                    } else if (dlEmpty) {
-                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_ACID;
-                        m_grid[y * BOARD_WIDTH + x] = 0;
-                        moved = true;
-                    } else if (drEmpty) {
-                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_ACID;
                         m_grid[y * BOARD_WIDTH + x] = 0;
                         moved = true;
                     }
                 }
             }
-            // ==================== 3. SAND DYNAMICS (BUOYANCY INTERACTION) ====================
+            // ==================== 3. ICE DYNAMICS ====================
+            else if (mat == MATERIAL_ICE) {
+                uint8_t below = m_grid[(y + 1) * BOARD_WIDTH + x];
+                if (below == MATERIAL_WATER) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ICE;
+                    m_lastFrozenCoords.push_back({y + 1, x});
+                    moved = true;
+                } else if (below == 0) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ICE;
+                    m_grid[y * BOARD_WIDTH + x] = 0;
+                    moved = true;
+                } else {
+                    bool dlFree = (x > 0 && (m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER));
+                    bool drFree = (x < BOARD_WIDTH - 1 && (m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER));
+                    if ((dlFree || drFree) && prob(g) < 0.12f) {
+                        int nx = (dlFree && (!drFree || prob(g) < 0.5f)) ? (x - 1) : (x + 1);
+                        uint8_t targetVal = m_grid[(y + 1) * BOARD_WIDTH + nx];
+                        if (targetVal == MATERIAL_WATER) {
+                            m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_ICE;
+                            m_lastFrozenCoords.push_back({y + 1, nx});
+                        } else {
+                            m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_ICE;
+                            m_grid[y * BOARD_WIDTH + x] = 0;
+                        }
+                        moved = true;
+                    }
+                }
+            }
+            // ==================== 4. FIRE DYNAMICS ====================
+            else if (mat == MATERIAL_FIRE) {
+                uint8_t below = m_grid[(y + 1) * BOARD_WIDTH + x];
+                // A. Fire touching Water: fire is totally destroyed!
+                if (below == MATERIAL_WATER) {
+                    m_grid[y * BOARD_WIDTH + x] = 0;
+                    m_lastExtinguishedCoords.push_back({y, x});
+                    moved = true;
+                }
+                // B. Fire touching Ice: melts ice to water AND fire turns to steam!
+                else if (below == MATERIAL_ICE) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_WATER;
+                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_STEAM;
+                    m_lastMeltedCoords.push_back({y + 1, x});
+                    m_lastSteamCoords.push_back({y, x});
+                    moved = true;
+                }
+                // C. Fire touching Acid: creates green toxic cloud!
+                else if (below == MATERIAL_ACID) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_TOXIC_GAS;
+                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_TOXIC_GAS;
+                    m_lastToxicCoords.push_back({y + 1, x});
+                    m_lastToxicCoords.push_back({y, x});
+                    moved = true;
+                }
+                // D. Fire touching Sand or Ash: burns sand into ash, fire itself converts to ash! (No red pixels!)
+                else if ((below >= 1 && below <= 10) || below == MATERIAL_ASH) {
+                    if (below >= 1 && below <= 10) {
+                        m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ASH;
+                        m_lastBurnedCoords.push_back({y + 1, x});
+                    }
+                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_ASH;
+                    m_lastBurnedCoords.push_back({y, x});
+                    moved = true;
+                }
+                // E. Empty below
+                else if (below == 0) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_FIRE;
+                    m_grid[y * BOARD_WIDTH + x] = 0;
+                    moved = true;
+                } else {
+                    bool dlWater = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER);
+                    bool drWater = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER);
+                    bool lWater = (x > 0 && m_grid[y * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER);
+                    bool rWater = (x < BOARD_WIDTH - 1 && m_grid[y * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER);
+                    bool dlIce = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_ICE);
+                    bool drIce = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_ICE);
+                    bool dlAcid = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_ACID);
+                    bool drAcid = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_ACID);
+                    bool dlSand = (x > 0 && ((m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] >= 1 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] <= 10) || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_ASH));
+                    bool drSand = (x < BOARD_WIDTH - 1 && ((m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] >= 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] <= 10) || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_ASH));
+
+                    if (dlWater || drWater || lWater || rWater) {
+                        m_grid[y * BOARD_WIDTH + x] = 0;
+                        m_lastExtinguishedCoords.push_back({y, x});
+                        moved = true;
+                    } else if (dlIce) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_WATER;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_STEAM;
+                        m_lastMeltedCoords.push_back({y + 1, x - 1});
+                        m_lastSteamCoords.push_back({y, x});
+                        moved = true;
+                    } else if (drIce) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_WATER;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_STEAM;
+                        m_lastMeltedCoords.push_back({y + 1, x + 1});
+                        m_lastSteamCoords.push_back({y, x});
+                        moved = true;
+                    } else if (dlAcid) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_TOXIC_GAS;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_TOXIC_GAS;
+                        m_lastToxicCoords.push_back({y + 1, x - 1});
+                        m_lastToxicCoords.push_back({y, x});
+                        moved = true;
+                    } else if (drAcid) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_TOXIC_GAS;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_TOXIC_GAS;
+                        m_lastToxicCoords.push_back({y + 1, x + 1});
+                        m_lastToxicCoords.push_back({y, x});
+                        moved = true;
+                    } else if (dlSand || drSand) {
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_ASH;
+                        m_lastBurnedCoords.push_back({y, x});
+                        moved = true;
+                    } else {
+                        bool dlEmpty = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0);
+                        bool drEmpty = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0);
+                        if (dlEmpty || drEmpty) {
+                            int nx = (std::uniform_int_distribution<int>(0, 1)(g) == 0) ? (x - 1) : (x + 1);
+                            if ((nx == x - 1 && !dlEmpty) || (nx == x + 1 && !drEmpty)) nx = (nx == x - 1) ? (x + 1) : (x - 1);
+                            m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_FIRE;
+                            m_grid[y * BOARD_WIDTH + x] = 0;
+                            moved = true;
+                        }
+                    }
+                }
+            }
+            // ==================== 5. ASH DYNAMICS (BURNT SAND POWDER) ====================
+            else if (mat == MATERIAL_ASH) {
+                uint8_t below = m_grid[(y + 1) * BOARD_WIDTH + x];
+                if (below == 0) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ASH;
+                    m_grid[y * BOARD_WIDTH + x] = 0;
+                    moved = true;
+                } else if (below == MATERIAL_WATER) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ASH;
+                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
+                    moved = true;
+                } else {
+                    bool dlFree = (x > 0 && (m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER));
+                    bool drFree = (x < BOARD_WIDTH - 1 && (m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER));
+                    if ((dlFree || drFree) && prob(g) < 0.10f) {
+                        int nx = (dlFree && (!drFree || prob(g) < 0.5f)) ? (x - 1) : (x + 1);
+                        uint8_t targetVal = m_grid[(y + 1) * BOARD_WIDTH + nx];
+                        m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_ASH;
+                        m_grid[y * BOARD_WIDTH + x] = (targetVal == MATERIAL_WATER) ? MATERIAL_WATER : 0;
+                        moved = true;
+                    }
+                }
+            }
+            // ==================== 6. NORMAL SAND DYNAMICS (BUOYANCY INTERACTION) ====================
             else {
                 uint8_t below = m_grid[(y + 1) * BOARD_WIDTH + x];
                 
@@ -503,20 +862,10 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
                     bool dlOk = (x > 0 && (m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER));
                     bool drOk = (x < BOARD_WIDTH - 1 && (m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER));
 
-                    if (dlOk && drOk) {
-                        int nx = (std::uniform_int_distribution<int>(0, 1)(g) == 0) ? (x - 1) : (x + 1);
+                    if ((dlOk || drOk) && prob(g) < 0.08f) {
+                        int nx = (dlOk && (!drOk || prob(g) < 0.5f)) ? (x - 1) : (x + 1);
                         uint8_t targetVal = m_grid[(y + 1) * BOARD_WIDTH + nx];
                         m_grid[(y + 1) * BOARD_WIDTH + nx] = mat;
-                        m_grid[y * BOARD_WIDTH + x] = (targetVal == MATERIAL_WATER) ? MATERIAL_WATER : 0;
-                        moved = true;
-                    } else if (dlOk) {
-                        uint8_t targetVal = m_grid[(y + 1) * BOARD_WIDTH + (x - 1)];
-                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = mat;
-                        m_grid[y * BOARD_WIDTH + x] = (targetVal == MATERIAL_WATER) ? MATERIAL_WATER : 0;
-                        moved = true;
-                    } else if (drOk) {
-                        uint8_t targetVal = m_grid[(y + 1) * BOARD_WIDTH + (x + 1)];
-                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = mat;
                         m_grid[y * BOARD_WIDTH + x] = (targetVal == MATERIAL_WATER) ? MATERIAL_WATER : 0;
                         moved = true;
                     }
@@ -538,6 +887,9 @@ std::pair<int, int> SandEngine::checkLineClears(std::vector<std::pair<int, int>>
     for (int c = 1; c <= m_numColors; ++c) colorsToCheck.push_back(c);
     if (m_enableElements) {
         colorsToCheck.push_back(MATERIAL_WATER);
+        colorsToCheck.push_back(MATERIAL_ICE);
+        colorsToCheck.push_back(MATERIAL_FIRE);
+        colorsToCheck.push_back(MATERIAL_ASH);
     }
 
     for (int color : colorsToCheck) {
@@ -854,6 +1206,9 @@ EngineTickEvent SandEngine::tick(int dtMs) {
 
         event.cleared = true;
         event.isTidalWave = (clearedCol == MATERIAL_WATER);
+        event.isIceClear = (clearedCol == MATERIAL_ICE);
+        event.isFireClear = (clearedCol == MATERIAL_FIRE);
+        event.isAshClear = (clearedCol == MATERIAL_ASH);
         event.grains = grainsCount;
         event.bands = bandsCount;
         event.coords = clearedCoords;
@@ -879,9 +1234,39 @@ EngineTickEvent SandEngine::tick(int dtMs) {
             steps++;
             if (m_activePiece->tryMove(0, 1, m_grid)) {
                 m_lockTimer = 0;
+                // When ice block moves downwards, existing water in contact converts into ice
+                if (m_activePiece->isIce()) {
+                    static const int dOffsets[6][2] = {{1, 0}, {2, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}};
+                    for (const auto& g : m_activePiece->getOccupiedGrains()) {
+                        for (const auto& d : dOffsets) {
+                            int ny = g.y + d[0];
+                            int nx = g.x + d[1];
+                            if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                                if (m_grid[ny * BOARD_WIDTH + nx] == MATERIAL_WATER) {
+                                    m_grid[ny * BOARD_WIDTH + nx] = MATERIAL_ICE;
+                                    m_lastFrozenCoords.push_back({ny, nx});
+                                }
+                            }
+                        }
+                    }
+                }
             } else {
                 m_lockTimer += gravityInterval;
-                if (m_lockTimer >= LOCK_DELAY_MS || m_isSoftDropping) {
+                // If fire piece hits water directly below, extinguish instantly
+                bool fireHitWater = false;
+                if (m_activePiece->isFire()) {
+                    for (const auto& g : m_activePiece->getOccupiedGrains()) {
+                        int ny = g.y + 1;
+                        int nx = g.x;
+                        if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                            if (m_grid[ny * BOARD_WIDTH + nx] == MATERIAL_WATER) {
+                                fireHitWater = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (m_lockTimer >= LOCK_DELAY_MS || m_isSoftDropping || fireHitWater) {
                     lockActivePiece(&event);
                     event.landed = true;
                 }
@@ -891,6 +1276,37 @@ EngineTickEvent SandEngine::tick(int dtMs) {
         if (m_gravityTimer > gravityInterval * 3) {
             m_gravityTimer = 0;
         }
+    }
+
+    if (!m_lastFrozenCoords.empty()) {
+        event.waterFrozen = true;
+        event.frozenCoords = m_lastFrozenCoords;
+        m_lastFrozenCoords.clear();
+    }
+    if (!m_lastMeltedCoords.empty()) {
+        event.iceMelted = true;
+        event.meltedCoords = m_lastMeltedCoords;
+        m_lastMeltedCoords.clear();
+    }
+    if (!m_lastSteamCoords.empty()) {
+        event.steamCreated = true;
+        event.steamCoords = m_lastSteamCoords;
+        m_lastSteamCoords.clear();
+    }
+    if (!m_lastToxicCoords.empty()) {
+        event.toxicCloudCreated = true;
+        event.toxicCoords = m_lastToxicCoords;
+        m_lastToxicCoords.clear();
+    }
+    if (!m_lastBurnedCoords.empty()) {
+        event.sandBurned = true;
+        event.burnedCoords = m_lastBurnedCoords;
+        m_lastBurnedCoords.clear();
+    }
+    if (!m_lastExtinguishedCoords.empty()) {
+        event.fireExtinguished = true;
+        event.extinguishedCoords = m_lastExtinguishedCoords;
+        m_lastExtinguishedCoords.clear();
     }
 
     return event;

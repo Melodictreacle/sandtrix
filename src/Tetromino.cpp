@@ -6,13 +6,14 @@ namespace {
 // Wall kicks offsets in grains to test during rotation
 const std::vector<std::pair<int, int>> WALL_KICK_TESTS = {
     {0, 0},
-    {MINO_SIZE, 0},
-    {-MINO_SIZE, 0},
-    {2 * MINO_SIZE, 0},
-    {-2 * MINO_SIZE, 0},
-    {0, -MINO_SIZE},
-    {MINO_SIZE, -MINO_SIZE},
-    {-MINO_SIZE, -MINO_SIZE}
+    {1, 0}, {-1, 0}, {0, -1},
+    {2, 0}, {-2, 0}, {0, -2},
+    {4, 0}, {-4, 0}, {0, -4},
+    {MINO_SIZE, 0}, {-MINO_SIZE, 0}, {0, -MINO_SIZE},
+    {MINO_SIZE, -1}, {-MINO_SIZE, -1},
+    {MINO_SIZE, -2}, {-MINO_SIZE, -2},
+    {MINO_SIZE, -MINO_SIZE}, {-MINO_SIZE, -MINO_SIZE},
+    {2 * MINO_SIZE, 0}, {-2 * MINO_SIZE, 0}
 };
 
 std::vector<std::vector<uint8_t>> getMinoMatrix(char shape, int rot) {
@@ -101,6 +102,8 @@ QString Tetromino::getElementName() const {
     if (isWater()) return "WATER";
     if (isAcid()) return "ACID";
     if (isBomb()) return "TNT";
+    if (isIce()) return "ICE";
+    if (isFire()) return "FIRE";
     return "";
 }
 
@@ -151,9 +154,10 @@ bool Tetromino::collides(const std::vector<uint8_t>& grid, int offsetX, int offs
                         return true;
                     }
 
-                    // Existing sand or water/acid
+                    // Existing sand or water/acid (ignoring rising atmospheric gases)
                     if (absY >= 0) {
-                        if (grid[absY * BOARD_WIDTH + absX] > 0) {
+                        uint8_t val = grid[absY * BOARD_WIDTH + absX];
+                        if (val > 0 && val != MATERIAL_STEAM && val != MATERIAL_TOXIC_GAS) {
                             return true;
                         }
                     }
@@ -300,20 +304,28 @@ uint8_t BagRandomizer::pickColor(size_t sequenceIndex) {
     if (m_isMystery) {
         std::uniform_real_distribution<float> chanceDist(0.0f, 1.0f);
         float roll = chanceDist(rng);
-        if (roll < 0.12f) {
+        if (roll < 0.10f) {
             return MATERIAL_BOMB; // TNT Bomb block!
-        } else if (roll < 0.22f) {
+        } else if (roll < 0.18f) {
             return MATERIAL_WATER; // Water block!
-        } else if (roll < 0.30f) {
+        } else if (roll < 0.26f) {
+            return MATERIAL_ICE;   // Ice block!
+        } else if (roll < 0.34f) {
+            return MATERIAL_FIRE;  // Fire block!
+        } else if (roll < 0.40f) {
             return MATERIAL_ACID;  // Acid block!
         }
     } else if (m_enableElements) {
         std::uniform_real_distribution<float> chanceDist(0.0f, 1.0f);
         float roll = chanceDist(rng);
 
-        if (roll < 0.15f) {
+        if (roll < 0.12f) {
             return MATERIAL_WATER; // Water block!
-        } else if (roll < 0.22f) {
+        } else if (roll < 0.24f) {
+            return MATERIAL_ICE;   // Ice block!
+        } else if (roll < 0.36f) {
+            return MATERIAL_FIRE;  // Fire block!
+        } else if (roll < 0.42f) {
             return MATERIAL_ACID;  // Acid block!
         }
     }
@@ -355,9 +367,13 @@ std::vector<std::unique_ptr<Tetromino>> BagRandomizer::peekNext(int count) {
         if (m_isMystery) {
             if (simCount % 6 == 0) col = MATERIAL_BOMB;
             else if (simCount % 9 == 0) col = MATERIAL_WATER;
-            else if (simCount % 11 == 0) col = MATERIAL_ACID;
+            else if (simCount % 11 == 0) col = MATERIAL_ICE;
+            else if (simCount % 13 == 0) col = MATERIAL_FIRE;
+            else if (simCount % 15 == 0) col = MATERIAL_ACID;
         } else if (m_enableElements) {
             if (simCount % 7 == 0) col = MATERIAL_WATER;
+            else if (simCount % 9 == 0) col = MATERIAL_ICE;
+            else if (simCount % 11 == 0) col = MATERIAL_FIRE;
             else if (simCount % 13 == 0) col = MATERIAL_ACID;
         }
 

@@ -11,6 +11,8 @@
 struct EngineTickEvent {
     bool cleared = false;
     bool isTidalWave = false;
+    bool isIceClear = false;
+    bool isFireClear = false;
     int grains = 0;
     int bands = 0;
     std::vector<std::pair<int, int>> coords; // (y, x)
@@ -21,6 +23,21 @@ struct EngineTickEvent {
     bool landedWater = false;
     bool landedAcid = false;
     bool landedBomb = false;
+    bool landedIce = false;
+    bool landedFire = false;
+    bool waterFrozen = false;
+    std::vector<std::pair<int, int>> frozenCoords;
+    bool iceMelted = false;
+    std::vector<std::pair<int, int>> meltedCoords;
+    bool steamCreated = false;
+    std::vector<std::pair<int, int>> steamCoords;
+    bool toxicCloudCreated = false;
+    std::vector<std::pair<int, int>> toxicCoords;
+    bool sandBurned = false;
+    std::vector<std::pair<int, int>> burnedCoords;
+    bool fireExtinguished = false;
+    std::vector<std::pair<int, int>> extinguishedCoords;
+    bool isAshClear = false;
     std::vector<std::pair<int, int>> acidCorrodedCoords;
     bool isClassicTetris = false;
     int classicLines = 0;
@@ -131,4 +148,12 @@ private:
     int m_lineGoal;
     bool m_missionCompleted;
     RunStats m_stats;
+
+    // Elemental Reactions
+    std::vector<std::pair<int, int>> m_lastFrozenCoords;
+    std::vector<std::pair<int, int>> m_lastMeltedCoords;
+    std::vector<std::pair<int, int>> m_lastSteamCoords;
+    std::vector<std::pair<int, int>> m_lastToxicCoords;
+    std::vector<std::pair<int, int>> m_lastBurnedCoords;
+    std::vector<std::pair<int, int>> m_lastExtinguishedCoords;
 };

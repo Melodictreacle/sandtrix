@@ -100,6 +100,47 @@ def create_sound_assets(sounds_dir: str):
             return math.sin(2 * math.pi * freq * t) * env * 0.6
         generate_wav(go_path, duration=0.6, generator_fn=gen_go)
 
+    # 7. Freeze Sound: Shimmering icy high-frequency crystal chime
+    freeze_path = os.path.join(sounds_dir, "freeze.wav")
+    if not os.path.exists(freeze_path):
+        def gen_freeze(t, d, i):
+            env = math.exp(-12.0 * t / d)
+            c1 = math.sin(2 * math.pi * (1200 + 400 * (t / d)) * t)
+            c2 = math.sin(2 * math.pi * 2400 * t) * 0.4
+            noise = (random.random() * 2.0 - 1.0) * 0.15
+            return (c1 * 0.6 + c2 + noise) * env * 0.55
+        generate_wav(freeze_path, duration=0.18, generator_fn=gen_freeze)
+
+    # 8. Steam / Melt Sound: Sizzling hiss when fire melts ice
+    steam_path = os.path.join(sounds_dir, "steam.wav")
+    if not os.path.exists(steam_path):
+        def gen_steam(t, d, i):
+            env = math.exp(-8.0 * t / d)
+            noise = (random.random() * 2.0 - 1.0)
+            tone = math.sin(2 * math.pi * 320 * t) * 0.2
+            return (noise * 0.8 + tone) * env * 0.5
+        generate_wav(steam_path, duration=0.22, generator_fn=gen_steam)
+
+    # 9. Toxic Gas Sound: Bubbling noxious chemical hiss when fire meets acid
+    toxic_path = os.path.join(sounds_dir, "toxic_gas.wav")
+    if not os.path.exists(toxic_path):
+        def gen_toxic(t, d, i):
+            env = math.exp(-5.0 * t / d)
+            bubble = math.sin(2 * math.pi * (180 + 90 * math.sin(40 * t)) * t) * 0.4
+            hiss = (random.random() * 2.0 - 1.0) * 0.6
+            return (bubble + hiss) * env * 0.5
+        generate_wav(toxic_path, duration=0.28, generator_fn=gen_toxic)
+
+    # 10. Scorch Sound: Crackling burn when fire lands on sand
+    scorch_path = os.path.join(sounds_dir, "scorch.wav")
+    if not os.path.exists(scorch_path):
+        def gen_scorch(t, d, i):
+            env = math.exp(-9.0 * t / d)
+            crackle = (random.random() * 2.0 - 1.0) if random.random() < 0.35 else 0.0
+            flame = math.sin(2 * math.pi * (240 - 80 * (t / d)) * t) * 0.3
+            return (crackle * 0.7 + flame) * env * 0.5
+        generate_wav(scorch_path, duration=0.20, generator_fn=gen_scorch)
+
 
 class AudioManager:
     """Manages audio playback for Sandtrix with volume and mute control."""
@@ -117,7 +158,11 @@ class AudioManager:
             print(f"[AudioManager] Audio initialization notice: {e}")
 
     def _load_effects(self):
-        effect_names = ["move", "rotate", "drop", "lock", "clear_1", "clear_2", "clear_3", "clear_4", "game_over"]
+        effect_names = [
+            "move", "rotate", "drop", "lock",
+            "clear_1", "clear_2", "clear_3", "clear_4",
+            "game_over", "freeze", "steam", "toxic_gas", "scorch"
+        ]
         for name in effect_names:
             path = os.path.join(self.sounds_dir, f"{name}.wav")
             if os.path.exists(path):
@@ -167,3 +212,15 @@ class AudioManager:
 
     def play_game_over(self):
         self.play("game_over")
+
+    def play_freeze(self):
+        self.play("freeze")
+
+    def play_steam(self):
+        self.play("steam")
+
+    def play_toxic_gas(self):
+        self.play("toxic_gas")
+
+    def play_scorch(self):
+        self.play("scorch")

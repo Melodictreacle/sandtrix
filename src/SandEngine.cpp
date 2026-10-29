@@ -11,9 +11,9 @@
 
 namespace {
 const std::vector<std::pair<int, int>> BFS_NEIGHBORS = {
-    {-1, 0},
-    { 0, -1}, { 0, 1},
-    { 1, 0}
+    {-1, -1}, {-1, 0}, {-1, 1},
+    { 0, -1},          { 0, 1},
+    { 1, -1}, { 1, 0}, { 1, 1}
 };
 
 int getGravityInterval(int level) {
@@ -123,6 +123,8 @@ void SandEngine::reset() {
     m_isSoftDropping = false;
     m_isSandMoving = false;
     m_lastDropHadClear = false;
+    m_pieceMeltedToDiluted = false;
+    m_pieceMeltedIceToWater = false;
 
     m_pieceShiftTriggerY = 0;
     m_pieceHasShifted = false;
@@ -138,6 +140,7 @@ void SandEngine::reset() {
     m_lastToxicCoords.clear();
     m_lastBurnedCoords.clear();
     m_lastExtinguishedCoords.clear();
+    m_lastDilutedCoords.clear();
 
     m_randomizer = BagRandomizer(m_numColors, m_enableElements && (m_gameMode == GameMode::Sandtrix), isMystery());
     m_nextQueue.clear();
@@ -152,6 +155,8 @@ void SandEngine::refillNextQueue() {
 }
 
 bool SandEngine::spawnPiece() {
+    m_pieceMeltedToDiluted = false;
+    m_pieceMeltedIceToWater = false;
     refillNextQueue();
     m_activePiece = std::move(m_nextQueue.front());
     m_nextQueue.erase(m_nextQueue.begin());
@@ -339,6 +344,44 @@ bool SandEngine::hardDrop(int& outX, int& outY, std::vector<std::pair<int, int>>
                     if (m_grid[ny * BOARD_WIDTH + nx] == MATERIAL_WATER) {
                         m_grid[ny * BOARD_WIDTH + nx] = MATERIAL_ICE;
                         m_lastFrozenCoords.push_back({ny, nx});
+                    } else if (m_grid[ny * BOARD_WIDTH + nx] == MATERIAL_ACID) {
+                        m_grid[ny * BOARD_WIDTH + nx] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({ny, nx});
+                    }
+                }
+            }
+        }
+    }
+
+    if (m_activePiece->isAcid()) {
+        static const int dOffsets[6][2] = {{1, 0}, {2, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}};
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            for (const auto& d : dOffsets) {
+                int ny = g.y + d[0];
+                int nx = g.x + d[1];
+                if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                    uint8_t c = m_grid[ny * BOARD_WIDTH + nx];
+                    if (c == MATERIAL_ICE || c == MATERIAL_WATER || c == MATERIAL_DILUTED_ACID) {
+                        m_grid[ny * BOARD_WIDTH + nx] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({ny, nx});
+                        m_pieceMeltedToDiluted = true;
+                    }
+                }
+            }
+        }
+    }
+
+    if (m_activePiece->isFire()) {
+        static const int dOffsets[6][2] = {{1, 0}, {2, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}};
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            for (const auto& d : dOffsets) {
+                int ny = g.y + d[0];
+                int nx = g.x + d[1];
+                if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                    if (m_grid[ny * BOARD_WIDTH + nx] == MATERIAL_ICE) {
+                        m_grid[ny * BOARD_WIDTH + nx] = MATERIAL_WATER;
+                        m_lastMeltedCoords.push_back({ny, nx});
+                        m_pieceMeltedIceToWater = true;
                     }
                 }
             }
@@ -380,6 +423,7 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
         outEvent->landedFire = isFire;
     }
 
+    std::vector<std::pair<int, int>> contactAcidForIce;
     if (isIce) {
         static const int dOffsets[6][2] = {{1, 0}, {2, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}};
         for (const auto& g : m_activePiece->getOccupiedGrains()) {
@@ -390,6 +434,31 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
                     if (m_grid[ny * BOARD_WIDTH + nx] == MATERIAL_WATER) {
                         m_grid[ny * BOARD_WIDTH + nx] = MATERIAL_ICE;
                         m_lastFrozenCoords.push_back({ny, nx});
+                    } else if (m_grid[ny * BOARD_WIDTH + nx] == MATERIAL_ACID) {
+                        contactAcidForIce.push_back({ny, nx});
+                    }
+                }
+            }
+        }
+    }
+
+    std::vector<std::pair<int, int>> contactIceForAcid;
+    std::vector<std::pair<int, int>> contactWaterForAcid;
+    std::vector<std::pair<int, int>> contactDilutedForAcid;
+    if (isAcid) {
+        static const int dCoords[10][2] = {{1, 0}, {2, 0}, {0, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {2, 1}, {2, -1}};
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            for (const auto& d : dCoords) {
+                int ny = g.y + d[0];
+                int nx = g.x + d[1];
+                if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                    uint8_t val = m_grid[ny * BOARD_WIDTH + nx];
+                    if (val == MATERIAL_ICE) {
+                        contactIceForAcid.push_back({ny, nx});
+                    } else if (val == MATERIAL_WATER) {
+                        contactWaterForAcid.push_back({ny, nx});
+                    } else if (val == MATERIAL_DILUTED_ACID) {
+                        contactDilutedForAcid.push_back({ny, nx});
                     }
                 }
             }
@@ -406,7 +475,7 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
     if (isFire) {
         // Check if fire piece landed on or touches other materials
         for (const auto& g : m_activePiece->getOccupiedGrains()) {
-            static const int dCoords[7][2] = {{1, 0}, {0, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}};
+            static const int dCoords[8][2] = {{1, 0}, {2, 0}, {0, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}};
             for (const auto& d : dCoords) {
                 int ny = g.y + d[0];
                 int nx = g.x + d[1];
@@ -421,23 +490,17 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
                         contactAcid.push_back({ny, nx});
                     } else if ((val >= 1 && val <= 10) || val == MATERIAL_ASH) {
                         hitSand = true;
-                        contactSand.push_back({ny, nx});
+                        if (val >= 1 && val <= 10) {
+                            contactSand.push_back({ny, nx});
+                        }
                     }
                 }
             }
         }
     }
 
-    if (isFire && hitWater) {
-        // 0. Fire on Water: When fire falls down upon water, fire is totally destroyed!
-        for (const auto& g : m_activePiece->getOccupiedGrains()) {
-            if (g.y >= 0 && g.y < BOARD_HEIGHT && g.x >= 0 && g.x < BOARD_WIDTH) {
-                m_lastExtinguishedCoords.push_back({g.y, g.x});
-            }
-        }
-        // Fire is completely erased/extinguished: none of its grains are placed on the grid
-    } else if (isFire && hitIce) {
-        // 1. Fire on Ice: Converts ice to water AND fire to steam (steam disappears after few seconds)
+    if (isFire && (hitIce || m_pieceMeltedIceToWater)) {
+        // 1. Fire on Ice: Converts ice to water AND fire to water!
         for (int i = 0; i < BOARD_WIDTH * BOARD_HEIGHT; ++i) {
             if (m_grid[i] == MATERIAL_ICE) {
                 m_grid[i] = MATERIAL_WATER;
@@ -446,10 +509,19 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
         }
         for (const auto& g : m_activePiece->getOccupiedGrains()) {
             if (g.y >= 0 && g.y < BOARD_HEIGHT && g.x >= 0 && g.x < BOARD_WIDTH) {
-                m_grid[g.y * BOARD_WIDTH + g.x] = MATERIAL_STEAM;
-                m_lastSteamCoords.push_back({g.y, g.x});
+                m_grid[g.y * BOARD_WIDTH + g.x] = MATERIAL_WATER;
+                m_lastMeltedCoords.push_back({g.y, g.x});
             }
         }
+        m_pieceMeltedIceToWater = false;
+    } else if (isFire && hitWater) {
+        // 0. Fire on Water: When fire falls down upon water, fire is totally destroyed!
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            if (g.y >= 0 && g.y < BOARD_HEIGHT && g.x >= 0 && g.x < BOARD_WIDTH) {
+                m_lastExtinguishedCoords.push_back({g.y, g.x});
+            }
+        }
+        // Fire is completely erased/extinguished: none of its grains are placed on the grid
     } else if (isFire && hitAcid) {
         // 2. Fire on Acid: Creates green toxic cloud (disappears after few seconds)
         for (const auto& pt : contactAcid) {
@@ -463,24 +535,83 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
             }
         }
     } else if (isFire && hitSand) {
-        // 3. Fire on Sand: Portion of sands burn and convert to ash; fire piece burns entirely to ash (no red pixels remain!)
-        static std::random_device rd;
-        static std::mt19937 rng(rd());
-        std::uniform_real_distribution<float> burnDist(0.0f, 1.0f);
+        // 3. Fire on Sand: Some portion (~1/3) of existing sand in impact zone converts into gray (ash);
+        // fire piece burns away (no extra grid cells occupied!). Sand remains mixed with ash (not the whole portion).
+        int minX = BOARD_WIDTH, maxX = -1, maxY = -1;
+        int sumX = 0, countG = 0;
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            minX = std::min(minX, g.x);
+            maxX = std::max(maxX, g.x);
+            maxY = std::max(maxY, g.y);
+            sumX += g.x;
+            countG++;
+        }
+        float centerX = (countG > 0) ? (static_cast<float>(sumX) / countG) : 40.0f;
+        int boundMinX = std::max(0, minX - 3);
+        int boundMaxX = std::min(BOARD_WIDTH - 1, maxX + 3);
+        int boundMaxY = std::min(BOARD_HEIGHT - 1, maxY + 8);
+
+        std::vector<std::pair<int, int>> touchedSand;
+        std::vector<bool> visited(BOARD_HEIGHT * BOARD_WIDTH, false);
+        std::vector<std::pair<int, int>> q;
 
         for (const auto& pt : contactSand) {
-            if (burnDist(rng) < 0.60f) {
-                m_grid[pt.first * BOARD_WIDTH + pt.second] = MATERIAL_ASH;
-                m_lastBurnedCoords.push_back(pt);
+            int idx = pt.first * BOARD_WIDTH + pt.second;
+            if (!visited[idx]) {
+                uint8_t c = m_grid[idx];
+                if (c >= 1 && c <= 10) {
+                    visited[idx] = true;
+                    q.push_back(pt);
+                    touchedSand.push_back(pt);
+                }
             }
         }
-        // Fire piece settles entirely as ash residue (100% ash, 0% red fire)
-        for (const auto& g : m_activePiece->getOccupiedGrains()) {
-            if (g.y >= 0 && g.y < BOARD_HEIGHT && g.x >= 0 && g.x < BOARD_WIDTH) {
-                m_grid[g.y * BOARD_WIDTH + g.x] = MATERIAL_ASH;
-                m_lastBurnedCoords.push_back({g.y, g.x});
+
+        static const int neighbors[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+        size_t head = 0;
+        while (head < q.size()) {
+            auto [cy, cx] = q[head++];
+            for (const auto& n : neighbors) {
+                int ny = cy + n[0];
+                int nx = cx + n[1];
+                if (ny >= 0 && ny <= boundMaxY && nx >= boundMinX && nx <= boundMaxX) {
+                    int nidx = ny * BOARD_WIDTH + nx;
+                    if (!visited[nidx]) {
+                        uint8_t val = m_grid[nidx];
+                        if (val >= 1 && val <= 10) {
+                            visited[nidx] = true;
+                            q.push_back({ny, nx});
+                            touchedSand.push_back({ny, nx});
+                        }
+                    }
+                }
             }
         }
+
+        if (!touchedSand.empty()) {
+            int totalSand = static_cast<int>(touchedSand.size());
+            int ashCount = std::max(1, static_cast<int>(std::round(totalSand / 3.0)));
+            if (totalSand > 1) {
+                ashCount = std::min(ashCount, totalSand - 1);
+            }
+
+            std::sort(touchedSand.begin(), touchedSand.end(), [centerX](const std::pair<int, int>& a, const std::pair<int, int>& b) {
+                float distA = a.first * 2.0f + std::abs(a.second - centerX) * 0.5f;
+                float distB = b.first * 2.0f + std::abs(b.second - centerX) * 0.5f;
+                return distA < distB;
+            });
+
+            float step = static_cast<float>(totalSand) / static_cast<float>(ashCount);
+            for (int i = 0; i < ashCount; ++i) {
+                int idx = static_cast<int>((i + 0.5f) * step);
+                if (idx >= 0 && idx < totalSand) {
+                    const auto& pt = touchedSand[idx];
+                    m_grid[pt.first * BOARD_WIDTH + pt.second] = MATERIAL_ASH;
+                    m_lastBurnedCoords.push_back(pt);
+                }
+            }
+        }
+        // Fire piece itself burns out completely: none of its grains are placed on the grid (no extra grid cells occupied!)
     } else if (isBomb) {
         int cx = m_activePiece->getX() + m_activePiece->getMaskWidth() / 2;
         int cy = m_activePiece->getY() + m_activePiece->getMaskHeight() / 2;
@@ -499,6 +630,34 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
         if (m_score > m_highScore) {
             m_highScore = m_score;
             saveHighScore();
+        }
+    } else if (isAcid && (!contactIceForAcid.empty() || !contactWaterForAcid.empty() || !contactDilutedForAcid.empty() || m_pieceMeltedToDiluted)) {
+        for (const auto& pt : contactIceForAcid) {
+            m_grid[pt.first * BOARD_WIDTH + pt.second] = MATERIAL_DILUTED_ACID;
+            m_lastDilutedCoords.push_back(pt);
+        }
+        for (const auto& pt : contactWaterForAcid) {
+            m_grid[pt.first * BOARD_WIDTH + pt.second] = MATERIAL_DILUTED_ACID;
+            m_lastDilutedCoords.push_back(pt);
+        }
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            if (g.y >= 0 && g.y < BOARD_HEIGHT && g.x >= 0 && g.x < BOARD_WIDTH) {
+                m_grid[g.y * BOARD_WIDTH + g.x] = MATERIAL_DILUTED_ACID;
+                m_lastDilutedCoords.push_back({g.y, g.x});
+                diluteAcidCluster(g.y, g.x);
+            }
+        }
+    } else if (isIce && !contactAcidForIce.empty()) {
+        for (const auto& pt : contactAcidForIce) {
+            m_grid[pt.first * BOARD_WIDTH + pt.second] = MATERIAL_DILUTED_ACID;
+            m_lastDilutedCoords.push_back(pt);
+            diluteAcidCluster(pt.first, pt.second);
+        }
+        for (const auto& g : m_activePiece->getOccupiedGrains()) {
+            if (g.y >= 0 && g.y < BOARD_HEIGHT && g.x >= 0 && g.x < BOARD_WIDTH) {
+                m_grid[g.y * BOARD_WIDTH + g.x] = MATERIAL_DILUTED_ACID;
+                m_lastDilutedCoords.push_back({g.y, g.x});
+            }
         }
     } else {
         for (const auto& g : m_activePiece->getOccupiedGrains()) {
@@ -535,6 +694,64 @@ void SandEngine::lockActivePiece(EngineTickEvent* outEvent) {
     }
 
     spawnPiece();
+}
+
+void SandEngine::diluteAcidCluster(int startY, int startX) {
+    std::vector<std::pair<int, int>> q;
+    q.push_back({startY, startX});
+    static const int neighbors[8][2] = {
+        {-1, 0}, {1, 0}, {0, -1}, {0, 1},
+        {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
+    };
+    while (!q.empty()) {
+        auto [cy, cx] = q.back();
+        q.pop_back();
+        for (const auto& n : neighbors) {
+            int ny = cy + n[0];
+            int nx = cx + n[1];
+            if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                int idx = ny * BOARD_WIDTH + nx;
+                uint8_t c = m_grid[idx];
+                if (c == MATERIAL_ACID) {
+                    m_grid[idx] = MATERIAL_DILUTED_ACID;
+                    m_lastDilutedCoords.push_back({ny, nx});
+                    q.push_back({ny, nx});
+                } else if (c == MATERIAL_ICE && (std::abs(n[0]) <= 1 && std::abs(n[1]) <= 1)) {
+                    m_grid[idx] = MATERIAL_DILUTED_ACID;
+                    m_lastDilutedCoords.push_back({ny, nx});
+                }
+            }
+        }
+    }
+}
+
+void SandEngine::convertFireToWaterCluster(int startY, int startX) {
+    std::vector<std::pair<int, int>> q;
+    q.push_back({startY, startX});
+    m_grid[startY * BOARD_WIDTH + startX] = MATERIAL_WATER;
+    m_lastMeltedCoords.push_back({startY, startX});
+
+    static const int neighbors[8][2] = {
+        {-1, 0}, {1, 0}, {0, -1}, {0, 1},
+        {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
+    };
+    while (!q.empty()) {
+        auto [cy, cx] = q.back();
+        q.pop_back();
+        for (const auto& n : neighbors) {
+            int ny = cy + n[0];
+            int nx = cx + n[1];
+            if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                int idx = ny * BOARD_WIDTH + nx;
+                uint8_t c = m_grid[idx];
+                if (c == MATERIAL_FIRE) {
+                    m_grid[idx] = MATERIAL_WATER;
+                    m_lastMeltedCoords.push_back({ny, nx});
+                    q.push_back({ny, nx});
+                }
+            }
+        }
+    }
 }
 
 bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded) {
@@ -682,19 +899,213 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
                     m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ACID;
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
-                } else if (below != MATERIAL_ACID && below != MATERIAL_WATER && below != MATERIAL_FIRE && below != MATERIAL_ICE && below != MATERIAL_TOXIC_GAS) {
+                } else if (below == MATERIAL_ICE) {
+                    // Acid on Ice: melts ice to water and converts both into diluted acid!
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                    m_lastDilutedCoords.push_back({y + 1, x});
+                    m_lastDilutedCoords.push_back({y, x});
+                    diluteAcidCluster(y, x);
+                    moved = true;
+                } else if (below == MATERIAL_WATER) {
+                    // Acid on Water: converts both into diluted acid!
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                    m_lastDilutedCoords.push_back({y + 1, x});
+                    m_lastDilutedCoords.push_back({y, x});
+                    diluteAcidCluster(y, x);
+                    moved = true;
+                } else if (below == MATERIAL_DILUTED_ACID) {
+                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                    m_lastDilutedCoords.push_back({y, x});
+                    diluteAcidCluster(y, x);
+                    moved = true;
+                } else if (below != MATERIAL_ACID && below != MATERIAL_FIRE && below != MATERIAL_TOXIC_GAS && below != MATERIAL_DILUTED_ACID) {
                     m_grid[(y + 1) * BOARD_WIDTH + x] = 0;
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     if (outAcidCorroded) outAcidCorroded->push_back({y + 1, x});
                     moved = true;
                 } else {
-                    bool dlEmpty = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0);
-                    bool drEmpty = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0);
-                    if ((dlEmpty || drEmpty) && prob(g) < 0.25f) {
-                        int nx = (dlEmpty && (!drEmpty || prob(g) < 0.5f)) ? (x - 1) : (x + 1);
-                        m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_ACID;
-                        m_grid[y * BOARD_WIDTH + x] = 0;
+                    bool dlIce = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_ICE);
+                    bool drIce = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_ICE);
+                    bool dlWater = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER);
+                    bool drWater = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER);
+                    bool dlDiluted = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_DILUTED_ACID);
+                    bool drDiluted = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_DILUTED_ACID);
+                    bool lDiluted = (x > 0 && m_grid[y * BOARD_WIDTH + (x - 1)] == MATERIAL_DILUTED_ACID);
+                    bool rDiluted = (x < BOARD_WIDTH - 1 && m_grid[y * BOARD_WIDTH + (x + 1)] == MATERIAL_DILUTED_ACID);
+                    if (dlIce) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_DILUTED_ACID;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y + 1, x - 1});
+                        m_lastDilutedCoords.push_back({y, x});
+                        diluteAcidCluster(y, x);
                         moved = true;
+                    } else if (drIce) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_DILUTED_ACID;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y + 1, x + 1});
+                        m_lastDilutedCoords.push_back({y, x});
+                        diluteAcidCluster(y, x);
+                        moved = true;
+                    } else if (dlWater) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_DILUTED_ACID;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y + 1, x - 1});
+                        m_lastDilutedCoords.push_back({y, x});
+                        diluteAcidCluster(y, x);
+                        moved = true;
+                    } else if (drWater) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_DILUTED_ACID;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y + 1, x + 1});
+                        m_lastDilutedCoords.push_back({y, x});
+                        diluteAcidCluster(y, x);
+                        moved = true;
+                    } else if (dlDiluted || drDiluted || lDiluted || rDiluted) {
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y, x});
+                        diluteAcidCluster(y, x);
+                        moved = true;
+                    } else {
+                        bool dlEmpty = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0);
+                        bool drEmpty = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0);
+                        if ((dlEmpty || drEmpty) && prob(g) < 0.25f) {
+                            int nx = (dlEmpty && (!drEmpty || prob(g) < 0.5f)) ? (x - 1) : (x + 1);
+                            m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_ACID;
+                            m_grid[y * BOARD_WIDTH + x] = 0;
+                            moved = true;
+                        }
+                    }
+                }
+            }
+            // ==================== 2B. DILUTED ACID DYNAMICS ====================
+            else if (mat == MATERIAL_DILUTED_ACID) {
+                uint8_t below = m_grid[(y + 1) * BOARD_WIDTH + x];
+                if (below == 0) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                    m_grid[y * BOARD_WIDTH + x] = 0;
+                    moved = true;
+                } else if (below == MATERIAL_ICE) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                    m_lastDilutedCoords.push_back({y + 1, x});
+                    moved = true;
+                } else if (below == MATERIAL_ACID) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                    m_lastDilutedCoords.push_back({y + 1, x});
+                    diluteAcidCluster(y + 1, x);
+                    moved = true;
+                } else if ((below >= 1 && below <= 10) || below == MATERIAL_ASH) {
+                    if (prob(g) < 0.005f) {
+                        m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                        m_grid[y * BOARD_WIDTH + x] = 0;
+                        if (outAcidCorroded) outAcidCorroded->push_back({y + 1, x});
+                        moved = true;
+                    } else {
+                        // Fluid rolling and lateral leveling over sand (pools flat like water)
+                        bool dlEmpty = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0);
+                        bool drEmpty = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0);
+                        if (dlEmpty && drEmpty) {
+                            int nx = (prob(g) < 0.5f) ? (x - 1) : (x + 1);
+                            m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_DILUTED_ACID;
+                            m_grid[y * BOARD_WIDTH + x] = 0;
+                            moved = true;
+                        } else if (dlEmpty) {
+                            m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_DILUTED_ACID;
+                            m_grid[y * BOARD_WIDTH + x] = 0;
+                            moved = true;
+                        } else if (drEmpty) {
+                            m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_DILUTED_ACID;
+                            m_grid[y * BOARD_WIDTH + x] = 0;
+                            moved = true;
+                        } else {
+                            bool leftEmpty = (x > 0 && m_grid[y * BOARD_WIDTH + (x - 1)] == 0);
+                            bool rightEmpty = (x < BOARD_WIDTH - 1 && m_grid[y * BOARD_WIDTH + (x + 1)] == 0);
+                            if (leftEmpty && rightEmpty) {
+                                int nx = (prob(g) < 0.5f) ? (x - 1) : (x + 1);
+                                m_grid[y * BOARD_WIDTH + nx] = MATERIAL_DILUTED_ACID;
+                                m_grid[y * BOARD_WIDTH + x] = 0;
+                                moved = true;
+                            } else if (leftEmpty) {
+                                m_grid[y * BOARD_WIDTH + (x - 1)] = MATERIAL_DILUTED_ACID;
+                                m_grid[y * BOARD_WIDTH + x] = 0;
+                                moved = true;
+                            } else if (rightEmpty) {
+                                m_grid[y * BOARD_WIDTH + (x + 1)] = MATERIAL_DILUTED_ACID;
+                                m_grid[y * BOARD_WIDTH + x] = 0;
+                                moved = true;
+                            }
+                        }
+                    }
+                } else {
+                    bool dlIce = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_ICE);
+                    bool drIce = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_ICE);
+                    bool lAcid = (x > 0 && m_grid[y * BOARD_WIDTH + (x - 1)] == MATERIAL_ACID);
+                    bool rAcid = (x < BOARD_WIDTH - 1 && m_grid[y * BOARD_WIDTH + (x + 1)] == MATERIAL_ACID);
+                    bool dlAcid = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_ACID);
+                    bool drAcid = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_ACID);
+                    if (dlIce) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y + 1, x - 1});
+                        moved = true;
+                    } else if (drIce) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y + 1, x + 1});
+                        moved = true;
+                    } else if (lAcid) {
+                        m_grid[y * BOARD_WIDTH + (x - 1)] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y, x - 1});
+                        diluteAcidCluster(y, x - 1);
+                        moved = true;
+                    } else if (rAcid) {
+                        m_grid[y * BOARD_WIDTH + (x + 1)] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y, x + 1});
+                        diluteAcidCluster(y, x + 1);
+                        moved = true;
+                    } else if (dlAcid) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y + 1, x - 1});
+                        diluteAcidCluster(y + 1, x - 1);
+                        moved = true;
+                    } else if (drAcid) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y + 1, x + 1});
+                        diluteAcidCluster(y + 1, x + 1);
+                        moved = true;
+                    } else {
+                        bool dlEmpty = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0);
+                        bool drEmpty = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0);
+                        if (dlEmpty && drEmpty) {
+                            int nx = (prob(g) < 0.5f) ? (x - 1) : (x + 1);
+                            m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_DILUTED_ACID;
+                            m_grid[y * BOARD_WIDTH + x] = 0;
+                            moved = true;
+                        } else if (dlEmpty) {
+                            m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_DILUTED_ACID;
+                            m_grid[y * BOARD_WIDTH + x] = 0;
+                            moved = true;
+                        } else if (drEmpty) {
+                            m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_DILUTED_ACID;
+                            m_grid[y * BOARD_WIDTH + x] = 0;
+                            moved = true;
+                        } else {
+                            bool leftEmpty = (x > 0 && m_grid[y * BOARD_WIDTH + (x - 1)] == 0);
+                            bool rightEmpty = (x < BOARD_WIDTH - 1 && m_grid[y * BOARD_WIDTH + (x + 1)] == 0);
+                            if (leftEmpty && rightEmpty) {
+                                int nx = (prob(g) < 0.5f) ? (x - 1) : (x + 1);
+                                m_grid[y * BOARD_WIDTH + nx] = MATERIAL_DILUTED_ACID;
+                                m_grid[y * BOARD_WIDTH + x] = 0;
+                                moved = true;
+                            } else if (leftEmpty) {
+                                m_grid[y * BOARD_WIDTH + (x - 1)] = MATERIAL_DILUTED_ACID;
+                                m_grid[y * BOARD_WIDTH + x] = 0;
+                                moved = true;
+                            } else if (rightEmpty) {
+                                m_grid[y * BOARD_WIDTH + (x + 1)] = MATERIAL_DILUTED_ACID;
+                                m_grid[y * BOARD_WIDTH + x] = 0;
+                                moved = true;
+                            }
+                        }
                     }
                 }
             }
@@ -705,42 +1116,105 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
                     m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ICE;
                     m_lastFrozenCoords.push_back({y + 1, x});
                     moved = true;
+                } else if (below == MATERIAL_FIRE) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_WATER;
+                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
+                    m_lastMeltedCoords.push_back({y + 1, x});
+                    m_lastMeltedCoords.push_back({y, x});
+                    convertFireToWaterCluster(y + 1, x);
+                    moved = true;
+                } else if (below == MATERIAL_ACID || below == MATERIAL_DILUTED_ACID) {
+                    m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                    m_lastDilutedCoords.push_back({y + 1, x});
+                    m_lastDilutedCoords.push_back({y, x});
+                    if (below == MATERIAL_ACID) diluteAcidCluster(y + 1, x);
+                    moved = true;
                 } else if (below == 0) {
                     m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ICE;
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
                 } else {
-                    bool dlFree = (x > 0 && (m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER));
-                    bool drFree = (x < BOARD_WIDTH - 1 && (m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER));
-                    if ((dlFree || drFree) && prob(g) < 0.12f) {
-                        int nx = (dlFree && (!drFree || prob(g) < 0.5f)) ? (x - 1) : (x + 1);
-                        uint8_t targetVal = m_grid[(y + 1) * BOARD_WIDTH + nx];
-                        if (targetVal == MATERIAL_WATER) {
-                            m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_ICE;
-                            m_lastFrozenCoords.push_back({y + 1, nx});
-                        } else {
-                            m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_ICE;
-                            m_grid[y * BOARD_WIDTH + x] = 0;
-                        }
+                    bool dlFire = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_FIRE);
+                    bool drFire = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_FIRE);
+                    bool lFire = (x > 0 && m_grid[y * BOARD_WIDTH + (x - 1)] == MATERIAL_FIRE);
+                    bool rFire = (x < BOARD_WIDTH - 1 && m_grid[y * BOARD_WIDTH + (x + 1)] == MATERIAL_FIRE);
+                    bool dlAcid = (x > 0 && (m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_ACID || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_DILUTED_ACID));
+                    bool drAcid = (x < BOARD_WIDTH - 1 && (m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_ACID || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_DILUTED_ACID));
+                    if (dlFire) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_WATER;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
+                        m_lastMeltedCoords.push_back({y + 1, x - 1});
+                        m_lastMeltedCoords.push_back({y, x});
+                        convertFireToWaterCluster(y + 1, x - 1);
                         moved = true;
+                    } else if (drFire) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_WATER;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
+                        m_lastMeltedCoords.push_back({y + 1, x + 1});
+                        m_lastMeltedCoords.push_back({y, x});
+                        convertFireToWaterCluster(y + 1, x + 1);
+                        moved = true;
+                    } else if (lFire) {
+                        m_grid[y * BOARD_WIDTH + (x - 1)] = MATERIAL_WATER;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
+                        m_lastMeltedCoords.push_back({y, x - 1});
+                        m_lastMeltedCoords.push_back({y, x});
+                        convertFireToWaterCluster(y, x - 1);
+                        moved = true;
+                    } else if (rFire) {
+                        m_grid[y * BOARD_WIDTH + (x + 1)] = MATERIAL_WATER;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
+                        m_lastMeltedCoords.push_back({y, x + 1});
+                        m_lastMeltedCoords.push_back({y, x});
+                        convertFireToWaterCluster(y, x + 1);
+                        moved = true;
+                    } else if (dlAcid) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_DILUTED_ACID;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y + 1, x - 1});
+                        m_lastDilutedCoords.push_back({y, x});
+                        moved = true;
+                    } else if (drAcid) {
+                        m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_DILUTED_ACID;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({y + 1, x + 1});
+                        m_lastDilutedCoords.push_back({y, x});
+                        moved = true;
+                    } else {
+                        bool dlFree = (x > 0 && (m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_DILUTED_ACID));
+                        bool drFree = (x < BOARD_WIDTH - 1 && (m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_DILUTED_ACID));
+                        if ((dlFree || drFree) && prob(g) < 0.12f) {
+                            int nx = (dlFree && (!drFree || prob(g) < 0.5f)) ? (x - 1) : (x + 1);
+                            uint8_t targetVal = m_grid[(y + 1) * BOARD_WIDTH + nx];
+                            if (targetVal == MATERIAL_WATER) {
+                                m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_ICE;
+                                m_lastFrozenCoords.push_back({y + 1, nx});
+                            } else {
+                                m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_ICE;
+                                m_grid[y * BOARD_WIDTH + x] = 0;
+                            }
+                            moved = true;
+                        }
                     }
                 }
             }
             // ==================== 4. FIRE DYNAMICS ====================
             else if (mat == MATERIAL_FIRE) {
                 uint8_t below = m_grid[(y + 1) * BOARD_WIDTH + x];
-                // A. Fire touching Water: fire is totally destroyed!
-                if (below == MATERIAL_WATER) {
+                // A. Fire touching Water or Diluted Acid: fire is totally extinguished!
+                if (below == MATERIAL_WATER || below == MATERIAL_DILUTED_ACID) {
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     m_lastExtinguishedCoords.push_back({y, x});
                     moved = true;
                 }
-                // B. Fire touching Ice: melts ice to water AND fire turns to steam!
+                // B. Fire touching Ice: melts ice to water AND fire turns to water!
                 else if (below == MATERIAL_ICE) {
                     m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_WATER;
-                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_STEAM;
+                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
                     m_lastMeltedCoords.push_back({y + 1, x});
-                    m_lastSteamCoords.push_back({y, x});
+                    m_lastMeltedCoords.push_back({y, x});
+                    convertFireToWaterCluster(y, x);
                     moved = true;
                 }
                 // C. Fire touching Acid: creates green toxic cloud!
@@ -751,14 +1225,15 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
                     m_lastToxicCoords.push_back({y, x});
                     moved = true;
                 }
-                // D. Fire touching Sand or Ash: burns sand into ash, fire itself converts to ash! (No red pixels!)
+                // D. Fire touching Sand or Ash: burns some portion of sand into ash (~1/3), fire itself burns out! (No extra grid cells occupied!)
                 else if ((below >= 1 && below <= 10) || below == MATERIAL_ASH) {
                     if (below >= 1 && below <= 10) {
-                        m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ASH;
-                        m_lastBurnedCoords.push_back({y + 1, x});
+                        if (prob(g) < 0.333f) {
+                            m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ASH;
+                            m_lastBurnedCoords.push_back({y + 1, x});
+                        }
                     }
-                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_ASH;
-                    m_lastBurnedCoords.push_back({y, x});
+                    m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
                 }
                 // E. Empty below
@@ -767,32 +1242,50 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
                 } else {
+                    bool dlIce = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_ICE);
+                    bool drIce = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_ICE);
+                    bool lIce = (x > 0 && m_grid[y * BOARD_WIDTH + (x - 1)] == MATERIAL_ICE);
+                    bool rIce = (x < BOARD_WIDTH - 1 && m_grid[y * BOARD_WIDTH + (x + 1)] == MATERIAL_ICE);
                     bool dlWater = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER);
                     bool drWater = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER);
                     bool lWater = (x > 0 && m_grid[y * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER);
                     bool rWater = (x < BOARD_WIDTH - 1 && m_grid[y * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER);
-                    bool dlIce = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_ICE);
-                    bool drIce = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_ICE);
                     bool dlAcid = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_ACID);
                     bool drAcid = (x < BOARD_WIDTH - 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_ACID);
                     bool dlSand = (x > 0 && ((m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] >= 1 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] <= 10) || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_ASH));
                     bool drSand = (x < BOARD_WIDTH - 1 && ((m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] >= 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] <= 10) || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_ASH));
 
-                    if (dlWater || drWater || lWater || rWater) {
-                        m_grid[y * BOARD_WIDTH + x] = 0;
-                        m_lastExtinguishedCoords.push_back({y, x});
-                        moved = true;
-                    } else if (dlIce) {
+                    if (dlIce) {
                         m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_WATER;
-                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_STEAM;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
                         m_lastMeltedCoords.push_back({y + 1, x - 1});
-                        m_lastSteamCoords.push_back({y, x});
+                        m_lastMeltedCoords.push_back({y, x});
+                        convertFireToWaterCluster(y, x);
                         moved = true;
                     } else if (drIce) {
                         m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_WATER;
-                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_STEAM;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
                         m_lastMeltedCoords.push_back({y + 1, x + 1});
-                        m_lastSteamCoords.push_back({y, x});
+                        m_lastMeltedCoords.push_back({y, x});
+                        convertFireToWaterCluster(y, x);
+                        moved = true;
+                    } else if (lIce) {
+                        m_grid[y * BOARD_WIDTH + (x - 1)] = MATERIAL_WATER;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
+                        m_lastMeltedCoords.push_back({y, x - 1});
+                        m_lastMeltedCoords.push_back({y, x});
+                        convertFireToWaterCluster(y, x);
+                        moved = true;
+                    } else if (rIce) {
+                        m_grid[y * BOARD_WIDTH + (x + 1)] = MATERIAL_WATER;
+                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
+                        m_lastMeltedCoords.push_back({y, x + 1});
+                        m_lastMeltedCoords.push_back({y, x});
+                        convertFireToWaterCluster(y, x);
+                        moved = true;
+                    } else if (dlWater || drWater || lWater || rWater) {
+                        m_grid[y * BOARD_WIDTH + x] = 0;
+                        m_lastExtinguishedCoords.push_back({y, x});
                         moved = true;
                     } else if (dlAcid) {
                         m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_TOXIC_GAS;
@@ -807,8 +1300,20 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
                         m_lastToxicCoords.push_back({y, x});
                         moved = true;
                     } else if (dlSand || drSand) {
-                        m_grid[y * BOARD_WIDTH + x] = MATERIAL_ASH;
-                        m_lastBurnedCoords.push_back({y, x});
+                        // Fire touching sand diagonally scorches some portion of sand into ash (~1/3) and burns out
+                        if (dlSand && (x > 0) && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] >= 1 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] <= 10) {
+                            if (prob(g) < 0.333f) {
+                                m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] = MATERIAL_ASH;
+                                m_lastBurnedCoords.push_back({y + 1, x - 1});
+                            }
+                        }
+                        if (drSand && (x < BOARD_WIDTH - 1) && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] >= 1 && m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] <= 10) {
+                            if (prob(g) < 0.333f) {
+                                m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] = MATERIAL_ASH;
+                                m_lastBurnedCoords.push_back({y + 1, x + 1});
+                            }
+                        }
+                        m_grid[y * BOARD_WIDTH + x] = 0;
                         moved = true;
                     } else {
                         bool dlEmpty = (x > 0 && m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0);
@@ -830,18 +1335,18 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
                     m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ASH;
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
-                } else if (below == MATERIAL_WATER) {
+                } else if (below == MATERIAL_WATER || below == MATERIAL_DILUTED_ACID) {
                     m_grid[(y + 1) * BOARD_WIDTH + x] = MATERIAL_ASH;
-                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
+                    m_grid[y * BOARD_WIDTH + x] = below;
                     moved = true;
                 } else {
-                    bool dlFree = (x > 0 && (m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER));
-                    bool drFree = (x < BOARD_WIDTH - 1 && (m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER));
+                    bool dlFree = (x > 0 && (m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_DILUTED_ACID));
+                    bool drFree = (x < BOARD_WIDTH - 1 && (m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_DILUTED_ACID));
                     if ((dlFree || drFree) && prob(g) < 0.10f) {
                         int nx = (dlFree && (!drFree || prob(g) < 0.5f)) ? (x - 1) : (x + 1);
                         uint8_t targetVal = m_grid[(y + 1) * BOARD_WIDTH + nx];
                         m_grid[(y + 1) * BOARD_WIDTH + nx] = MATERIAL_ASH;
-                        m_grid[y * BOARD_WIDTH + x] = (targetVal == MATERIAL_WATER) ? MATERIAL_WATER : 0;
+                        m_grid[y * BOARD_WIDTH + x] = (targetVal == MATERIAL_WATER || targetVal == MATERIAL_DILUTED_ACID) ? targetVal : 0;
                         moved = true;
                     }
                 }
@@ -854,25 +1359,70 @@ bool SandEngine::updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded
                     m_grid[(y + 1) * BOARD_WIDTH + x] = mat;
                     m_grid[y * BOARD_WIDTH + x] = 0;
                     moved = true;
-                } else if (below == MATERIAL_WATER) {
+                } else if (below == MATERIAL_WATER || below == MATERIAL_DILUTED_ACID) {
                     m_grid[(y + 1) * BOARD_WIDTH + x] = mat;
-                    m_grid[y * BOARD_WIDTH + x] = MATERIAL_WATER;
+                    m_grid[y * BOARD_WIDTH + x] = below;
                     moved = true;
                 } else {
-                    bool dlOk = (x > 0 && (m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER));
-                    bool drOk = (x < BOARD_WIDTH - 1 && (m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER));
+                    bool dlOk = (x > 0 && (m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_WATER || m_grid[(y + 1) * BOARD_WIDTH + (x - 1)] == MATERIAL_DILUTED_ACID));
+                    bool drOk = (x < BOARD_WIDTH - 1 && (m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == 0 || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_WATER || m_grid[(y + 1) * BOARD_WIDTH + (x + 1)] == MATERIAL_DILUTED_ACID));
 
                     if ((dlOk || drOk) && prob(g) < 0.08f) {
                         int nx = (dlOk && (!drOk || prob(g) < 0.5f)) ? (x - 1) : (x + 1);
                         uint8_t targetVal = m_grid[(y + 1) * BOARD_WIDTH + nx];
                         m_grid[(y + 1) * BOARD_WIDTH + nx] = mat;
-                        m_grid[y * BOARD_WIDTH + x] = (targetVal == MATERIAL_WATER) ? MATERIAL_WATER : 0;
+                        m_grid[y * BOARD_WIDTH + x] = (targetVal == MATERIAL_WATER || targetVal == MATERIAL_DILUTED_ACID) ? targetVal : 0;
                         moved = true;
                     }
                 }
             }
         }
     }
+
+    if (!m_lastDilutedCoords.empty()) {
+        auto coordsCopy = m_lastDilutedCoords;
+        static const int sweepNeighbors[8][2] = {
+            {-1, 0}, {1, 0}, {0, -1}, {0, 1},
+            {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
+        };
+        for (const auto& pt : coordsCopy) {
+            for (const auto& sn : sweepNeighbors) {
+                int ny = pt.first + sn[0];
+                int nx = pt.second + sn[1];
+                if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                    int idx = ny * BOARD_WIDTH + nx;
+                    if (m_grid[idx] == MATERIAL_ACID) {
+                        m_grid[idx] = MATERIAL_DILUTED_ACID;
+                        m_lastDilutedCoords.push_back({ny, nx});
+                        diluteAcidCluster(ny, nx);
+                    }
+                }
+            }
+        }
+    }
+
+    if (!m_lastMeltedCoords.empty()) {
+        auto coordsCopy = m_lastMeltedCoords;
+        static const int sweepNeighbors[8][2] = {
+            {-1, 0}, {1, 0}, {0, -1}, {0, 1},
+            {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
+        };
+        for (const auto& pt : coordsCopy) {
+            for (const auto& sn : sweepNeighbors) {
+                int ny = pt.first + sn[0];
+                int nx = pt.second + sn[1];
+                if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                    int idx = ny * BOARD_WIDTH + nx;
+                    if (m_grid[idx] == MATERIAL_FIRE) {
+                        m_grid[idx] = MATERIAL_WATER;
+                        m_lastMeltedCoords.push_back({ny, nx});
+                        convertFireToWaterCluster(ny, nx);
+                    }
+                }
+            }
+        }
+    }
+
     return moved;
 }
 
@@ -890,6 +1440,7 @@ std::pair<int, int> SandEngine::checkLineClears(std::vector<std::pair<int, int>>
         colorsToCheck.push_back(MATERIAL_ICE);
         colorsToCheck.push_back(MATERIAL_FIRE);
         colorsToCheck.push_back(MATERIAL_ASH);
+        colorsToCheck.push_back(MATERIAL_DILUTED_ACID);
     }
 
     for (int color : colorsToCheck) {
@@ -903,6 +1454,7 @@ std::pair<int, int> SandEngine::checkLineClears(std::vector<std::pair<int, int>>
         if (startRows.empty()) continue;
 
         std::fill(visited.begin(), visited.end(), false);
+        bool liquidClearedAll = false;
 
         for (int sy : startRows) {
             if (visited[sy * BOARD_WIDTH + 0]) continue;
@@ -940,8 +1492,24 @@ std::pair<int, int> SandEngine::checkLineClears(std::vector<std::pair<int, int>>
             if (touchesRightWall) {
                 bandsCount++;
                 outLastColor = static_cast<uint8_t>(color);
-                for (const auto& pt : component) {
-                    outCoords.push_back(pt);
+                if (color == MATERIAL_WATER || color == MATERIAL_DILUTED_ACID) {
+                    liquidClearedAll = true;
+                } else {
+                    for (const auto& pt : component) {
+                        outCoords.push_back(pt);
+                    }
+                }
+            }
+        }
+
+        if (liquidClearedAll) {
+            // When both edges are connected through water (or diluted acid),
+            // whole water across the entire grid must vanish!
+            for (int y = 0; y < BOARD_HEIGHT; ++y) {
+                for (int x = 0; x < BOARD_WIDTH; ++x) {
+                    if (m_grid[y * BOARD_WIDTH + x] == color) {
+                        outCoords.push_back({y, x});
+                    }
                 }
             }
         }
@@ -1177,7 +1745,7 @@ EngineTickEvent SandEngine::tick(int dtMs) {
         double comboMult = std::pow(COMBO_MULTIPLIER_BASE, comboExponent);
         comboMult = std::min(40.0, comboMult);
 
-        int bonusPerBand = (clearedCol == MATERIAL_WATER) ? (POINTS_PER_BAND * 2) : POINTS_PER_BAND;
+        int bonusPerBand = (clearedCol == MATERIAL_WATER || clearedCol == MATERIAL_ICE || clearedCol == MATERIAL_FIRE || clearedCol == MATERIAL_ASH || clearedCol == MATERIAL_DILUTED_ACID) ? (POINTS_PER_BAND * 2) : POINTS_PER_BAND;
         int64_t rawPoints = static_cast<int64_t>((grainsCount * POINTS_PER_GRAIN + bandsCount * bonusPerBand) * comboMult * m_level);
         int points = static_cast<int>(std::max<int64_t>(0, std::min<int64_t>(5000000, rawPoints)));
 
@@ -1209,6 +1777,7 @@ EngineTickEvent SandEngine::tick(int dtMs) {
         event.isIceClear = (clearedCol == MATERIAL_ICE);
         event.isFireClear = (clearedCol == MATERIAL_FIRE);
         event.isAshClear = (clearedCol == MATERIAL_ASH);
+        event.isDilutedAcidClear = (clearedCol == MATERIAL_DILUTED_ACID);
         event.grains = grainsCount;
         event.bands = bandsCount;
         event.coords = clearedCoords;
@@ -1220,6 +1789,8 @@ EngineTickEvent SandEngine::tick(int dtMs) {
             m_combo = 0;
         }
         m_lastDropHadClear = false;
+    m_pieceMeltedToDiluted = false;
+    m_pieceMeltedIceToWater = false;
     }
 
     // 3. Active Tetromino Gravity & Lock
@@ -1245,6 +1816,42 @@ EngineTickEvent SandEngine::tick(int dtMs) {
                                 if (m_grid[ny * BOARD_WIDTH + nx] == MATERIAL_WATER) {
                                     m_grid[ny * BOARD_WIDTH + nx] = MATERIAL_ICE;
                                     m_lastFrozenCoords.push_back({ny, nx});
+                                } else if (m_grid[ny * BOARD_WIDTH + nx] == MATERIAL_ACID) {
+                                    m_grid[ny * BOARD_WIDTH + nx] = MATERIAL_DILUTED_ACID;
+                                    m_lastDilutedCoords.push_back({ny, nx});
+                                }
+                            }
+                        }
+                    }
+                }
+                if (m_activePiece->isAcid()) {
+                    static const int dOffsets[6][2] = {{1, 0}, {2, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}};
+                    for (const auto& g : m_activePiece->getOccupiedGrains()) {
+                        for (const auto& d : dOffsets) {
+                            int ny = g.y + d[0];
+                            int nx = g.x + d[1];
+                            if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                                uint8_t c = m_grid[ny * BOARD_WIDTH + nx];
+                                if (c == MATERIAL_ICE || c == MATERIAL_WATER) {
+                                    m_grid[ny * BOARD_WIDTH + nx] = MATERIAL_DILUTED_ACID;
+                                    m_lastDilutedCoords.push_back({ny, nx});
+                                }
+                            }
+                        }
+                    }
+                }
+                if (m_activePiece->isFire()) {
+                    static const int dOffsets[6][2] = {{1, 0}, {2, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}};
+                    for (const auto& g : m_activePiece->getOccupiedGrains()) {
+                        for (const auto& d : dOffsets) {
+                            int ny = g.y + d[0];
+                            int nx = g.x + d[1];
+                            if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
+                                uint8_t c = m_grid[ny * BOARD_WIDTH + nx];
+                                if (c == MATERIAL_ICE) {
+                                    m_grid[ny * BOARD_WIDTH + nx] = MATERIAL_WATER;
+                                    m_lastMeltedCoords.push_back({ny, nx});
+                                    m_pieceMeltedIceToWater = true;
                                 }
                             }
                         }
@@ -1252,21 +1859,22 @@ EngineTickEvent SandEngine::tick(int dtMs) {
                 }
             } else {
                 m_lockTimer += gravityInterval;
-                // If fire piece hits water directly below, extinguish instantly
-                bool fireHitWater = false;
+                // If fire piece hits liquid or ice directly below, lock instantly
+                bool fireHitLiquidOrIce = false;
                 if (m_activePiece->isFire()) {
                     for (const auto& g : m_activePiece->getOccupiedGrains()) {
                         int ny = g.y + 1;
                         int nx = g.x;
                         if (ny >= 0 && ny < BOARD_HEIGHT && nx >= 0 && nx < BOARD_WIDTH) {
-                            if (m_grid[ny * BOARD_WIDTH + nx] == MATERIAL_WATER) {
-                                fireHitWater = true;
+                            uint8_t c = m_grid[ny * BOARD_WIDTH + nx];
+                            if (c == MATERIAL_WATER || c == MATERIAL_ICE) {
+                                fireHitLiquidOrIce = true;
                                 break;
                             }
                         }
                     }
                 }
-                if (m_lockTimer >= LOCK_DELAY_MS || m_isSoftDropping || fireHitWater) {
+                if (m_lockTimer >= LOCK_DELAY_MS || m_isSoftDropping || fireHitLiquidOrIce) {
                     lockActivePiece(&event);
                     event.landed = true;
                 }
@@ -1307,6 +1915,11 @@ EngineTickEvent SandEngine::tick(int dtMs) {
         event.fireExtinguished = true;
         event.extinguishedCoords = m_lastExtinguishedCoords;
         m_lastExtinguishedCoords.clear();
+    }
+    if (!m_lastDilutedCoords.empty()) {
+        event.acidDiluted = true;
+        event.dilutedCoords = m_lastDilutedCoords;
+        m_lastDilutedCoords.clear();
     }
 
     return event;

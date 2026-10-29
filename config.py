@@ -57,6 +57,7 @@ MATERIAL_FIRE      = 54   # Fire: blazing heat, melts ice, ignites acid, burns s
 MATERIAL_STEAM     = 55   # Steam: light vapor gas, rises upward, dissipates after few seconds
 MATERIAL_TOXIC_GAS = 56   # Toxic Cloud: green vapor from fire + acid, rises & dissipates
 MATERIAL_ASH       = 57   # Ash: burnt sand residue, charcoal ash gray powder
+MATERIAL_DILUTED_ACID = 58 # Diluted Acid: formed when acid melts ice/water, milder fluid corrosion
 
 # Distinct Elemental Colors (RGBA)
 ELEMENT_COLORS = {
@@ -68,6 +69,7 @@ ELEMENT_COLORS = {
     MATERIAL_STEAM:     (225, 235, 245, 220),  # Steam Mist White/Blue (#E1EBF5)
     MATERIAL_TOXIC_GAS: (57, 255, 20, 240),    # Radioactive Toxic Green (#39FF14)
     MATERIAL_ASH:       (138, 144, 150, 255),  # Charcoal Ash Gray (#8A9096)
+    MATERIAL_DILUTED_ACID: (24, 228, 204, 255), # Shimmering Aquamarine / Diluted Acid Water (#18E4CC)
 }
 
 # High Scores file path

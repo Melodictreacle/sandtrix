@@ -13,7 +13,8 @@ from PyQt6.QtGui import (
 from config import (
     BOARD_WIDTH, BOARD_HEIGHT, CELL_DISPLAY_SIZE, CANVAS_WIDTH, CANVAS_HEIGHT,
     DANGER_ROW, FRAME_TIME_MS, PALETTES, DEFAULT_PALETTE,
-    DAS_DELAY_MS, ARR_REPEAT_MS, MINO_SIZE, ELEMENT_COLORS
+    DAS_DELAY_MS, ARR_REPEAT_MS, MINO_SIZE, ELEMENT_COLORS,
+    MATERIAL_WATER, MATERIAL_DILUTED_ACID
 )
 from sand_engine import SandEngine
 from particles import ParticleManager
@@ -59,12 +60,12 @@ class SandtrixCanvas(QWidget):
     def _rebuild_palette_lut(self):
         """Constructs an RGBA lookup array for NumPy array-to-QImage conversion."""
         raw_colors = self.palette_info["colors"]
-        lut = np.zeros((64, 4), dtype=np.uint8)
+        lut = np.zeros((128, 4), dtype=np.uint8)
         for idx, c in enumerate(raw_colors):
             lut[idx] = [c[0], c[1], c[2], c[3]]
         # Assign distinct elemental colors
         for mat_id, c in ELEMENT_COLORS.items():
-            if mat_id < 64:
+            if mat_id < 128:
                 lut[mat_id] = [c[0], c[1], c[2], c[3]]
         self.palette_lut = lut
 
@@ -155,6 +156,16 @@ class SandtrixCanvas(QWidget):
                 CANVAS_WIDTH // 2 - 65, mid_y, "FIRE EXTINGUISHED!", QColor(255, 140, 60), font_size=15
             )
 
+        if events.get('acid_diluted'):
+            d_coords = events.get('diluted_coords', [])
+            pixel_coords = [(cx * CELL_DISPLAY_SIZE, cy * CELL_DISPLAY_SIZE) for cy, cx in d_coords]
+            self.particles.add_diluted_acid_fizz(pixel_coords)
+            self.audio.play_acid_dilute()
+            mid_y = int(np.mean([cy for cy, _ in d_coords])) * CELL_DISPLAY_SIZE if d_coords else 200
+            self.particles.add_floating_text(
+                CANVAS_WIDTH // 2 - 80, mid_y, "ICE MELTED INTO DILUTED ACID!", QColor(24, 228, 204), font_size=14
+            )
+
         if events['cleared']:
             # Line clear triggered!
             coords = events['coords']
@@ -182,6 +193,8 @@ class SandtrixCanvas(QWidget):
                 title = f"FIRE STORM! +{pts}"
             elif events.get('is_ash_clear'):
                 title = f"ASH PURGED! +{pts}"
+            elif events.get('is_diluted_acid_clear'):
+                title = f"DILUTED ACID CLEANSE! +{pts}"
             elif combo > 1:
                 title = f"COMBO x{combo}! +{pts}"
             else:
@@ -313,8 +326,30 @@ class SandtrixCanvas(QWidget):
         # 1. Render Sand Grid from NumPy to QImage
         # Map grid integers to RGBA palette
         grid_data = self.engine.grid
-        rgba_buffer = self.palette_lut[grid_data]  # shape: (H, W, 4)
-        
+        rgba_buffer = self.palette_lut[grid_data].copy()  # shape: (H, W, 4)
+
+        # Dynamic water-like liquid texture (caustics, wave ripples, surface meniscus)
+        liquid_mask = (grid_data == MATERIAL_WATER) | (grid_data == MATERIAL_DILUTED_ACID)
+        if np.any(liquid_mask):
+            ys, xs = np.where(liquid_mask)
+            # Animated cross-wave caustic shimmer
+            waves = (14.0 * np.sin(xs * 0.45 + self.pulse_time * 3.5) +
+                     8.0 * np.sin((xs + ys) * 0.25 - self.pulse_time * 2.0)).astype(np.int16)
+            # Surface meniscus highlight (cells touching empty space above)
+            is_surface = (ys == 0) | (grid_data[np.maximum(0, ys - 1), xs] == 0)
+            meniscus = np.where(is_surface, 32, 0).astype(np.int16)
+            
+            # Subtle effervescent micro-sparkle for diluted acid
+            effervescence = np.zeros_like(waves)
+            is_diluted = (grid_data[ys, xs] == MATERIAL_DILUTED_ACID)
+            if np.any(is_diluted):
+                effervescence[is_diluted] = (10.0 * np.sin(xs[is_diluted] * 1.8 + ys[is_diluted] * 2.3 + self.pulse_time * 8.0)).astype(np.int16)
+            
+            total_mod = waves + meniscus + effervescence
+            for c in range(3):
+                vals = rgba_buffer[ys, xs, c].astype(np.int16) + total_mod
+                rgba_buffer[ys, xs, c] = np.clip(vals, 0, 255).astype(np.uint8)
+
         # Create QImage from memory buffer
         h, w = grid_data.shape
         qimg = QImage(rgba_buffer.data, w, h, w * 4, QImage.Format.Format_RGBA8888)

@@ -235,6 +235,34 @@ class ParticleManager:
             ash.size = random.uniform(2.0, 3.0)
             self.particles.append(ash)
 
+    def add_diluted_acid_fizz(self, pixel_coords: List[Tuple[float, float]], count: int = 35):
+        """Spawns effervescent seafoam-lime bubbles and soft frosty melt vapor when acid melts ice into diluted acid."""
+        if not pixel_coords:
+            return
+        sample_step = max(1, len(pixel_coords) // count)
+        for i in range(0, len(pixel_coords), sample_step):
+            px, py = pixel_coords[i]
+            col = random.choice([
+                (24, 228, 204),   # Vibrant aquamarine water
+                (140, 245, 240),  # Pale aqua shimmer
+                (180, 245, 255),  # Frost melt water
+                (40, 215, 225)    # Turquoise aqua highlight
+            ])
+            p = SparkParticle(px + random.uniform(-4, 4), py + random.uniform(-4, 4), col)
+            p.vx = random.uniform(-1.0, 1.0)
+            p.vy = random.uniform(-2.2, -0.6)  # Buoyant effervescent rise
+            p.gravity = -0.02
+            p.friction = 0.96
+            p.max_life = 35
+            p.life = 35
+            p.size = random.uniform(2.5, 4.0)
+            self.particles.append(p)
+            if random.random() < 0.35:
+                self.clouds.append(CloudParticle(
+                    px + random.uniform(-6, 6), py + random.uniform(-4, 4),
+                    (140, 240, 175), max_life=75, initial_size=6.0, growth=0.04
+                ))
+
     def trigger_shake(self, intensity: float = 6.0):
         self.shake_intensity = max(self.shake_intensity, intensity)
 

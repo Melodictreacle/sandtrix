@@ -39,6 +39,7 @@ constexpr uint8_t MATERIAL_FIRE      = 54;   // Fire: heat, melts ice, ignites a
 constexpr uint8_t MATERIAL_STEAM     = 55;   // Steam: light vapor gas, rises, dissipates after few seconds
 constexpr uint8_t MATERIAL_TOXIC_GAS = 56;   // Toxic Cloud: green vapor from fire + acid, rises & dissipates
 constexpr uint8_t MATERIAL_ASH       = 57;   // Ash: burnt sand residue, charcoal ash gray powder
+constexpr uint8_t MATERIAL_DILUTED_ACID = 58; // Diluted Acid: formed when acid melts ice/water, milder fluid corrosion
 
 // Distinct, High-Visibility Material Colors (Completely distinct from sand blocks)
 inline QColor getWaterColor()    { return QColor(0, 210, 215); }   // Distinct Turquoise Aqua (#00D2D7)
@@ -49,6 +50,7 @@ inline QColor getFireColor()     { return QColor(255, 69, 0); }    // Distinct B
 inline QColor getSteamColor()    { return QColor(225, 235, 245); } // Distinct Soft Mist White-Blue (#E1EBF5)
 inline QColor getToxicGasColor() { return QColor(57, 255, 20); }   // Distinct Radioactive Neon Green (#39FF14)
 inline QColor getAshColor()      { return QColor(138, 144, 150); } // Distinct Charcoal Ash Gray (#8A9096)
+inline QColor getDilutedAcidColor() { return QColor(24, 228, 204); } // Distinct Shimmering Aquamarine / Diluted Acid Water (#18E4CC)
 
 // Color Palette struct
 struct ColorPalette {

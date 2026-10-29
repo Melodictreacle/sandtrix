@@ -171,7 +171,258 @@ MainMenuWidget::MainMenuWidget(QWidget* parent)
     );
     connect(btnExit, &QPushButton::clicked, this, &MainMenuWidget::exitClicked);
 
+    // Level / Difficulty Selector Card on Main Menu
+    auto* levelBox = new QFrame(menuCard);
+    levelBox->setObjectName("mainMenuLevelBox");
+    levelBox->setStyleSheet(
+        "QFrame#mainMenuLevelBox {"
+        "  background-color: #10141e;"
+        "  border: 1px solid #283248;"
+        "  border-radius: 10px;"
+        "  padding: 8px 10px;"
+        "}"
+    );
+    auto* levelBoxLayout = new QVBoxLayout(levelBox);
+    levelBoxLayout->setContentsMargins(4, 4, 4, 4);
+    levelBoxLayout->setSpacing(6);
+
+    auto* lblLevelHeader = new QLabel("DIFFICULTY / STARTING LEVEL", levelBox);
+    lblLevelHeader->setAlignment(Qt::AlignCenter);
+    lblLevelHeader->setStyleSheet(
+        "color: #94a1b2;"
+        "font-size: 10px;"
+        "font-weight: 800;"
+        "letter-spacing: 1.5px;"
+    );
+    levelBoxLayout->addWidget(lblLevelHeader);
+
+    auto* levelRow = new QHBoxLayout();
+    levelRow->setSpacing(8);
+
+    m_btnLevelDown = new QPushButton("◀  −", levelBox);
+    m_btnLevelDown->setFixedSize(54, 38);
+    m_btnLevelDown->setCursor(Qt::PointingHandCursor);
+    m_btnLevelDown->setToolTip("Decrease Starting Level (Slower Pace)");
+    m_btnLevelDown->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #242c3d;"
+        "  color: #f7fafc;"
+        "  border: 1px solid #37435f;"
+        "  border-radius: 8px;"
+        "  font-size: 13px;"
+        "  font-weight: 900;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #2f3a50;"
+        "  border-color: #68c48a;"
+        "  color: #68c48a;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #1a202c;"
+        "}"
+        "QPushButton:disabled {"
+        "  background-color: #181d27;"
+        "  color: #4a5568;"
+        "  border-color: #242b38;"
+        "}"
+    );
+
+    m_spinLevel = new QSpinBox(levelBox);
+    m_spinLevel->setRange(1, 10);
+    m_spinLevel->setValue(1);
+    m_spinLevel->setAlignment(Qt::AlignCenter);
+    m_spinLevel->setFixedHeight(38);
+    m_spinLevel->setPrefix("Level  ");
+    m_spinLevel->setStyleSheet(
+        "QSpinBox {"
+        "  background-color: #1a202c;"
+        "  border: 1px solid #37435f;"
+        "  border-radius: 8px;"
+        "  padding: 2px 6px;"
+        "  color: #68c48a;"
+        "  font-size: 15px;"
+        "  font-weight: 800;"
+        "}"
+        "QSpinBox:hover {"
+        "  border-color: #68c48a;"
+        "}"
+        "QSpinBox::up-button {"
+        "  subcontrol-origin: border;"
+        "  subcontrol-position: top right;"
+        "  width: 22px;"
+        "  background-color: #242c3d;"
+        "  border-left: 1px solid #37435f;"
+        "  border-bottom: 1px solid #37435f;"
+        "  border-top-right-radius: 7px;"
+        "}"
+        "QSpinBox::up-button:hover {"
+        "  background-color: #313c54;"
+        "}"
+        "QSpinBox::down-button {"
+        "  subcontrol-origin: border;"
+        "  subcontrol-position: bottom right;"
+        "  width: 22px;"
+        "  background-color: #242c3d;"
+        "  border-left: 1px solid #37435f;"
+        "  border-bottom-right-radius: 7px;"
+        "}"
+        "QSpinBox::down-button:hover {"
+        "  background-color: #313c54;"
+        "}"
+    );
+
+    m_btnLevelUp = new QPushButton("+  ▶", levelBox);
+    m_btnLevelUp->setFixedSize(54, 38);
+    m_btnLevelUp->setCursor(Qt::PointingHandCursor);
+    m_btnLevelUp->setToolTip("Increase Starting Level (Faster Pace)");
+    m_btnLevelUp->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #242c3d;"
+        "  color: #f7fafc;"
+        "  border: 1px solid #37435f;"
+        "  border-radius: 8px;"
+        "  font-size: 13px;"
+        "  font-weight: 900;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #2f3a50;"
+        "  border-color: #68c48a;"
+        "  color: #68c48a;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #1a202c;"
+        "}"
+        "QPushButton:disabled {"
+        "  background-color: #181d27;"
+        "  color: #4a5568;"
+        "  border-color: #242b38;"
+        "}"
+    );
+
+    levelRow->addWidget(m_btnLevelDown);
+    levelRow->addWidget(m_spinLevel, 1);
+    levelRow->addWidget(m_btnLevelUp);
+    levelBoxLayout->addLayout(levelRow);
+
+    m_lblLevelDesc = new QLabel(levelBox);
+    m_lblLevelDesc->setAlignment(Qt::AlignCenter);
+    m_lblLevelDesc->setStyleSheet("color: #a0aec0; font-size: 11px; font-weight: 600;");
+    levelBoxLayout->addWidget(m_lblLevelDesc);
+
+    connect(m_btnLevelDown, &QPushButton::clicked, this, &MainMenuWidget::onLevelDown);
+    connect(m_btnLevelUp, &QPushButton::clicked, this, &MainMenuWidget::onLevelUp);
+    connect(m_spinLevel, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainMenuWidget::onLevelSpinChanged);
+
+    updateLevelDisplay();
+
+    // Mission / Line Goal Selector Card on Main Menu
+    auto* goalBox = new QFrame(menuCard);
+    goalBox->setObjectName("mainMenuGoalBox");
+    goalBox->setStyleSheet(
+        "QFrame#mainMenuGoalBox {"
+        "  background-color: #10141e;"
+        "  border: 1px solid #283248;"
+        "  border-radius: 10px;"
+        "  padding: 8px 10px;"
+        "}"
+    );
+    auto* goalBoxLayout = new QVBoxLayout(goalBox);
+    goalBoxLayout->setContentsMargins(4, 4, 4, 4);
+    goalBoxLayout->setSpacing(6);
+
+    auto* lblGoalHeader = new QLabel("MISSION / LINE GOAL", goalBox);
+    lblGoalHeader->setAlignment(Qt::AlignCenter);
+    lblGoalHeader->setStyleSheet(
+        "color: #94a1b2;"
+        "font-size: 10px;"
+        "font-weight: 800;"
+        "letter-spacing: 1.5px;"
+    );
+    goalBoxLayout->addWidget(lblGoalHeader);
+
+    auto* goalRow = new QHBoxLayout();
+    goalRow->setSpacing(8);
+
+    m_btnGoalPrev = new QPushButton("◀  −", goalBox);
+    m_btnGoalPrev->setFixedSize(54, 38);
+    m_btnGoalPrev->setCursor(Qt::PointingHandCursor);
+    m_btnGoalPrev->setToolTip("Previous Line Goal");
+    m_btnGoalPrev->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #242c3d;"
+        "  color: #f7fafc;"
+        "  border: 1px solid #37435f;"
+        "  border-radius: 8px;"
+        "  font-size: 13px;"
+        "  font-weight: 900;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #2f3a50;"
+        "  border-color: #7cb7ea;"
+        "  color: #7cb7ea;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #1a202c;"
+        "}"
+        "QPushButton:disabled {"
+        "  background-color: #181d27;"
+        "  color: #4a5568;"
+        "  border-color: #242b38;"
+        "}"
+    );
+
+    m_btnGoalValue = new QPushButton(goalBox);
+    m_btnGoalValue->setFixedHeight(38);
+    m_btnGoalValue->setCursor(Qt::PointingHandCursor);
+    m_btnGoalValue->setToolTip("Click to cycle Line Goal");
+
+    m_btnGoalNext = new QPushButton("+  ▶", goalBox);
+    m_btnGoalNext->setFixedSize(54, 38);
+    m_btnGoalNext->setCursor(Qt::PointingHandCursor);
+    m_btnGoalNext->setToolTip("Next Line Goal");
+    m_btnGoalNext->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #242c3d;"
+        "  color: #f7fafc;"
+        "  border: 1px solid #37435f;"
+        "  border-radius: 8px;"
+        "  font-size: 13px;"
+        "  font-weight: 900;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #2f3a50;"
+        "  border-color: #7cb7ea;"
+        "  color: #7cb7ea;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #1a202c;"
+        "}"
+        "QPushButton:disabled {"
+        "  background-color: #181d27;"
+        "  color: #4a5568;"
+        "  border-color: #242b38;"
+        "}"
+    );
+
+    goalRow->addWidget(m_btnGoalPrev);
+    goalRow->addWidget(m_btnGoalValue, 1);
+    goalRow->addWidget(m_btnGoalNext);
+    goalBoxLayout->addLayout(goalRow);
+
+    m_lblGoalDesc = new QLabel(goalBox);
+    m_lblGoalDesc->setAlignment(Qt::AlignCenter);
+    m_lblGoalDesc->setStyleSheet("color: #a0aec0; font-size: 11px; font-weight: 600;");
+    goalBoxLayout->addWidget(m_lblGoalDesc);
+
+    connect(m_btnGoalPrev, &QPushButton::clicked, this, &MainMenuWidget::onGoalPrev);
+    connect(m_btnGoalNext, &QPushButton::clicked, this, &MainMenuWidget::onGoalNext);
+    connect(m_btnGoalValue, &QPushButton::clicked, this, &MainMenuWidget::onGoalCycle);
+
+    updateGoalDisplay();
+
     menuLayout->addWidget(m_btnModeToggle);
+    menuLayout->addWidget(levelBox);
+    menuLayout->addWidget(goalBox);
     menuLayout->addWidget(btnStart);
     menuLayout->addWidget(btnSettings);
     menuLayout->addWidget(btnHowToPlay);
@@ -182,6 +433,19 @@ MainMenuWidget::MainMenuWidget(QWidget* parent)
 }
 
 void MainMenuWidget::updateSettingsBadge(const GameSettings& settings) {
+    if (m_spinLevel && m_spinLevel->value() != settings.startingLevel) {
+        m_spinLevel->blockSignals(true);
+        m_spinLevel->setValue(settings.startingLevel);
+        m_spinLevel->blockSignals(false);
+        updateLevelDisplay();
+    }
+
+    int expectedGoalIdx = getIndexFromGoalValue(settings.lineGoal);
+    if (m_currentGoalIndex != expectedGoalIdx) {
+        m_currentGoalIndex = expectedGoalIdx;
+        updateGoalDisplay();
+    }
+
     QString modeBadge;
     if (settings.gameMode == GameMode::Mystery) {
         modeBadge = "Mystery Sandtrix";
@@ -306,6 +570,123 @@ void MainMenuWidget::updateSettingsBadge(const GameSettings& settings) {
             );
         }
     }
+}
+
+void MainMenuWidget::onLevelDown() {
+    int val = m_spinLevel->value();
+    if (val > 1) {
+        m_spinLevel->setValue(val - 1);
+    }
+}
+
+void MainMenuWidget::onLevelUp() {
+    int val = m_spinLevel->value();
+    if (val < 10) {
+        m_spinLevel->setValue(val + 1);
+    }
+}
+
+void MainMenuWidget::onLevelSpinChanged(int val) {
+    updateLevelDisplay();
+    emit levelChanged(val);
+}
+
+void MainMenuWidget::updateLevelDisplay() {
+    int val = m_spinLevel->value();
+    m_btnLevelDown->setEnabled(val > 1);
+    m_btnLevelUp->setEnabled(val < 10);
+
+    static const char* s_descs[] = {
+        "Level 1 • Relaxed Pace (45ms drop delay)",
+        "Level 2 • Gentle Pace (40ms drop delay)",
+        "Level 3 • Standard Pace (35ms drop delay)",
+        "Level 4 • Moderate Pace (30ms drop delay)",
+        "Level 5 • Brisk Pace (25ms drop delay)",
+        "Level 6 • Fast Pace (20ms drop delay)",
+        "Level 7 • Rapid Pace (16ms drop delay)",
+        "Level 8 • Very Fast Pace (13ms drop delay)",
+        "Level 9 • Extreme Pace (10ms drop delay)",
+        "Level 10 • Maximum Speed (8ms drop delay)"
+    };
+    int idx = std::max(0, std::min(9, val - 1));
+    m_lblLevelDesc->setText(s_descs[idx]);
+}
+
+int MainMenuWidget::getGoalValueFromIndex(int idx) {
+    static const int s_goalValues[4] = {0, 20, 40, 100};
+    if (idx >= 0 && idx < 4) return s_goalValues[idx];
+    return 0;
+}
+
+int MainMenuWidget::getIndexFromGoalValue(int goal) {
+    if (goal == 20) return 1;
+    if (goal == 40) return 2;
+    if (goal == 100) return 3;
+    return 0;
+}
+
+void MainMenuWidget::onGoalPrev() {
+    if (m_currentGoalIndex > 0) {
+        m_currentGoalIndex--;
+        updateGoalDisplay();
+        emit goalChanged(getGoalValueFromIndex(m_currentGoalIndex));
+    }
+}
+
+void MainMenuWidget::onGoalNext() {
+    if (m_currentGoalIndex < 3) {
+        m_currentGoalIndex++;
+        updateGoalDisplay();
+        emit goalChanged(getGoalValueFromIndex(m_currentGoalIndex));
+    }
+}
+
+void MainMenuWidget::onGoalCycle() {
+    m_currentGoalIndex = (m_currentGoalIndex + 1) % 4;
+    updateGoalDisplay();
+    emit goalChanged(getGoalValueFromIndex(m_currentGoalIndex));
+}
+
+void MainMenuWidget::updateGoalDisplay() {
+    m_btnGoalPrev->setEnabled(m_currentGoalIndex > 0);
+    m_btnGoalNext->setEnabled(m_currentGoalIndex < 3);
+
+    struct GoalInfo {
+        const char* label;
+        const char* color;
+        const char* border;
+        const char* desc;
+    };
+    static const GoalInfo s_goals[4] = {
+        {"ENDLESS", "#68c48a", "#285e43", "Endless Marathon • Play for the highest score"},
+        {"20 LINES", "#38b2ac", "#234e52", "20 Lines Sprint • Fast-paced sprint clearance"},
+        {"40 LINES", "#7cb7ea", "#2b4c7e", "40 Lines Sprint • The classic speed benchmark"},
+        {"100 LINES", "#f6ad55", "#7b341e", "100 Lines Endurance • Ultimate stamina challenge"}
+    };
+
+    int idx = std::max(0, std::min(3, m_currentGoalIndex));
+    const auto& g = s_goals[idx];
+
+    m_btnGoalValue->setText(g.label);
+    m_btnGoalValue->setStyleSheet(QString(
+        "QPushButton {"
+        "  background-color: #1a202c;"
+        "  color: %1;"
+        "  border: 1.5px solid %2;"
+        "  border-radius: 8px;"
+        "  font-size: 14px;"
+        "  font-weight: 800;"
+        "  letter-spacing: 1px;"
+        "}"
+        "QPushButton:hover {"
+        "  border-color: %1;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #141a24;"
+        "}"
+    ).arg(g.color, g.border));
+
+    m_lblGoalDesc->setText(g.desc);
 }
 
 // ==================== SettingsWidget ====================

@@ -25,10 +25,38 @@ signals:
     void howToPlayClicked();
     void exitClicked();
     void modeToggled();
+    void levelChanged(int level);
+    void goalChanged(int lineGoal);
+
+private slots:
+    void onLevelDown();
+    void onLevelUp();
+    void onLevelSpinChanged(int val);
+    void onGoalPrev();
+    void onGoalNext();
+    void onGoalCycle();
 
 private:
+    void updateLevelDisplay();
+    void updateGoalDisplay();
+    static int getGoalValueFromIndex(int idx);
+    static int getIndexFromGoalValue(int goal);
+
     QLabel* m_lblBadge;
     QPushButton* m_btnModeToggle;
+
+    // Main Menu Level / Difficulty Stepper
+    QSpinBox* m_spinLevel;
+    QPushButton* m_btnLevelDown;
+    QPushButton* m_btnLevelUp;
+    QLabel* m_lblLevelDesc;
+
+    // Main Menu Mission / Line Goal Stepper
+    int m_currentGoalIndex = 0;
+    QPushButton* m_btnGoalPrev;
+    QPushButton* m_btnGoalNext;
+    QPushButton* m_btnGoalValue;
+    QLabel* m_lblGoalDesc;
 };
 
 class SettingsWidget : public QWidget {

@@ -7,7 +7,7 @@ import os
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-    QLabel, QComboBox, QPushButton, QFrame
+    QLabel, QComboBox, QPushButton, QFrame, QSpinBox
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon, QFont, QPalette, QColor
@@ -164,6 +164,88 @@ class SandtrixWindow(QMainWindow):
         self.combo_palette.currentTextChanged.connect(self._on_palette_changed)
         options_layout.addWidget(self.combo_palette)
 
+        # Level / Difficulty Stepper
+        lbl_lvl = QLabel("DIFFICULTY / STARTING LEVEL")
+        lbl_lvl.setStyleSheet("color: #7d8597; font-size: 10px; font-weight: bold; letter-spacing: 1px;")
+        options_layout.addWidget(lbl_lvl)
+
+        lvl_row = QHBoxLayout()
+        lvl_row.setSpacing(6)
+
+        btn_lvl_down = QPushButton("◀ −")
+        btn_lvl_down.setFixedWidth(46)
+        btn_lvl_down.clicked.connect(self._on_level_down)
+
+        self.spin_level = QSpinBox()
+        self.spin_level.setRange(1, 10)
+        self.spin_level.setValue(1)
+        self.spin_level.setPrefix("Level  ")
+        self.spin_level.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.spin_level.setStyleSheet("""
+            QSpinBox {
+                background-color: #161822;
+                border: 1px solid #2a2e3f;
+                border-radius: 6px;
+                padding: 4px 8px;
+                color: #2ED573;
+                font-weight: bold;
+                font-size: 12px;
+            }
+        """)
+        self.spin_level.valueChanged.connect(self._on_level_changed)
+
+        btn_lvl_up = QPushButton("+ ▶")
+        btn_lvl_up.setFixedWidth(46)
+        btn_lvl_up.clicked.connect(self._on_level_up)
+
+        lvl_row.addWidget(btn_lvl_down)
+        lvl_row.addWidget(self.spin_level)
+        lvl_row.addWidget(btn_lvl_up)
+        options_layout.addLayout(lvl_row)
+
+        # Mission / Line Goal Stepper
+        lbl_goal = QLabel("MISSION / LINE GOAL")
+        lbl_goal.setStyleSheet("color: #7d8597; font-size: 10px; font-weight: bold; letter-spacing: 1px;")
+        options_layout.addWidget(lbl_goal)
+
+        goal_row = QHBoxLayout()
+        goal_row.setSpacing(6)
+
+        btn_goal_down = QPushButton("◀ −")
+        btn_goal_down.setFixedWidth(46)
+        btn_goal_down.clicked.connect(self._on_goal_prev)
+
+        self.btn_goal_val = QPushButton("ENDLESS")
+        self.btn_goal_val.setStyleSheet("""
+            QPushButton {
+                background-color: #161822;
+                border: 1.5px solid #285e43;
+                border-radius: 6px;
+                padding: 4px 8px;
+                color: #68c48a;
+                font-weight: bold;
+                font-size: 11px;
+            }
+        """)
+        self.btn_goal_val.clicked.connect(self._on_goal_cycle)
+
+        btn_goal_up = QPushButton("+ ▶")
+        btn_goal_up.setFixedWidth(46)
+        btn_goal_up.clicked.connect(self._on_goal_next)
+
+        goal_row.addWidget(btn_goal_down)
+        goal_row.addWidget(self.btn_goal_val)
+        goal_row.addWidget(btn_goal_up)
+        options_layout.addLayout(goal_row)
+
+        self.goal_index = 0
+        self.goal_options = [
+            (0, "ENDLESS", "#68c48a", "#285e43"),
+            (20, "20 LINES", "#38b2ac", "#234e52"),
+            (40, "40 LINES", "#7cb7ea", "#2b4c7e"),
+            (100, "100 LINES", "#f6ad55", "#7b341e")
+        ]
+
         # Sound & Restart buttons
         btn_row = QHBoxLayout()
         btn_row.setSpacing(6)
@@ -201,7 +283,12 @@ class SandtrixWindow(QMainWindow):
         self.card_score.set_value(f"{engine.score:,}")
         self.card_high_score.set_value(f"{engine.high_score:,}")
         self.card_level.set_value(str(engine.level))
-        self.card_bands.set_value(str(engine.lines_cleared))
+        if getattr(engine, 'line_goal', 0) > 0:
+            self.card_bands.set_title("Goal Progress")
+            self.card_bands.set_value(f"{engine.lines_cleared} / {engine.line_goal}")
+        else:
+            self.card_bands.set_title("Lines Cleared")
+            self.card_bands.set_value(str(engine.lines_cleared))
         self.combo_badge.update_combo(engine.combo)
 
         # Update Hold piece
@@ -226,8 +313,56 @@ class SandtrixWindow(QMainWindow):
         self.btn_sound.setText("🔇 Muted" if muted else "🔊 Sound")
         self.canvas.setFocus()
 
+    def _on_level_down(self):
+        val = self.spin_level.value()
+        if val > 1:
+            self.spin_level.setValue(val - 1)
+
+    def _on_level_up(self):
+        val = self.spin_level.value()
+        if val < 10:
+            self.spin_level.setValue(val + 1)
+
+    def _on_level_changed(self, val: int):
+        self.canvas.engine.start_level = val
+        self.canvas.engine.level = val
+        self.card_level.set_value(str(val))
+        self.canvas.setFocus()
+
+    def _on_goal_prev(self):
+        if self.goal_index > 0:
+            self.goal_index -= 1
+            self._update_goal_display()
+
+    def _on_goal_next(self):
+        if self.goal_index < len(self.goal_options) - 1:
+            self.goal_index += 1
+            self._update_goal_display()
+
+    def _on_goal_cycle(self):
+        self.goal_index = (self.goal_index + 1) % len(self.goal_options)
+        self._update_goal_display()
+
+    def _update_goal_display(self):
+        val, label, col, border = self.goal_options[self.goal_index]
+        self.canvas.engine.line_goal = val
+        self.btn_goal_val.setText(label)
+        self.btn_goal_val.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #161822;
+                border: 1.5px solid {border};
+                border-radius: 6px;
+                padding: 4px 8px;
+                color: {col};
+                font-weight: bold;
+                font-size: 11px;
+            }}
+        """)
+        self.canvas.setFocus()
+
     def _restart_game(self):
         self.canvas.engine.reset()
+        self.card_level.set_value(str(self.canvas.engine.level))
         self.canvas.particles.clear()
         self.canvas.update()
         self.canvas.setFocus()

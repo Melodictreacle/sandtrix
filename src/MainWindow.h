@@ -24,6 +24,8 @@ private slots:
     void onOpenHowToPlay();
     void onReturnToMenu();
     void onSettingsChanged(const GameSettings& settings);
+    void onLevelChanged(int level);
+    void onGoalChanged(int lineGoal);
     void onToggleSound();
     void onRestartGame();
     void onToggleMode();

@@ -141,6 +141,17 @@ def create_sound_assets(sounds_dir: str):
             return (crackle * 0.7 + flame) * env * 0.5
         generate_wav(scorch_path, duration=0.20, generator_fn=gen_scorch)
 
+    # 11. Acid Dilution Sound: Sizzling effervescent chemical reaction hiss when acid melts ice/water
+    acid_dilute_path = os.path.join(sounds_dir, "acid_dilute.wav")
+    if not os.path.exists(acid_dilute_path):
+        def gen_acid_dilute(t, d, i):
+            env = math.exp(-6.0 * t / d)
+            noise = (random.random() * 2.0 - 1.0) * 0.45
+            bubble = math.sin(2 * math.pi * (260 + 130 * math.sin(55 * t)) * t) * 0.35
+            chime = math.sin(2 * math.pi * 1400 * t) * 0.15 * math.exp(-15.0 * t / d)
+            return (noise + bubble + chime) * env * 0.6
+        generate_wav(acid_dilute_path, duration=0.25, generator_fn=gen_acid_dilute)
+
 
 class AudioManager:
     """Manages audio playback for Sandtrix with volume and mute control."""
@@ -161,7 +172,7 @@ class AudioManager:
         effect_names = [
             "move", "rotate", "drop", "lock",
             "clear_1", "clear_2", "clear_3", "clear_4",
-            "game_over", "freeze", "steam", "toxic_gas", "scorch"
+            "game_over", "freeze", "steam", "toxic_gas", "scorch", "acid_dilute"
         ]
         for name in effect_names:
             path = os.path.join(self.sounds_dir, f"{name}.wav")
@@ -224,3 +235,6 @@ class AudioManager:
 
     def play_scorch(self):
         self.play("scorch")
+
+    def play_acid_dilute(self):
+        self.play("acid_dilute")

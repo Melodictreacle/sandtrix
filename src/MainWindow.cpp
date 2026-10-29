@@ -64,6 +64,8 @@ void MainWindow::initStackedViews() {
     connect(m_mainMenu, &MainMenuWidget::howToPlayClicked, this, &MainWindow::onOpenHowToPlay);
     connect(m_mainMenu, &MainMenuWidget::exitClicked, this, &MainWindow::close);
     connect(m_mainMenu, &MainMenuWidget::modeToggled, this, &MainWindow::onToggleMode);
+    connect(m_mainMenu, &MainMenuWidget::levelChanged, this, &MainWindow::onLevelChanged);
+    connect(m_mainMenu, &MainMenuWidget::goalChanged, this, &MainWindow::onGoalChanged);
     m_stack->addWidget(m_mainMenu);
 
     // 1: Settings Screen
@@ -415,6 +417,22 @@ void MainWindow::onReturnToMenu() {
     }
     m_mainMenu->updateSettingsBadge(m_settings);
     switchToScreen(m_mainMenu);
+}
+
+void MainWindow::onLevelChanged(int level) {
+    m_settings.startingLevel = level;
+    m_mainMenu->updateSettingsBadge(m_settings);
+    if (m_settingsView) {
+        m_settingsView->loadSettings(m_settings);
+    }
+}
+
+void MainWindow::onGoalChanged(int lineGoal) {
+    m_settings.lineGoal = lineGoal;
+    m_mainMenu->updateSettingsBadge(m_settings);
+    if (m_settingsView) {
+        m_settingsView->loadSettings(m_settings);
+    }
 }
 
 void MainWindow::onSettingsChanged(const GameSettings& settings) {

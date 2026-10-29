@@ -38,6 +38,9 @@ struct EngineTickEvent {
     bool fireExtinguished = false;
     std::vector<std::pair<int, int>> extinguishedCoords;
     bool isAshClear = false;
+    bool isDilutedAcidClear = false;
+    bool acidDiluted = false;
+    std::vector<std::pair<int, int>> dilutedCoords;
     std::vector<std::pair<int, int>> acidCorrodedCoords;
     bool isClassicTetris = false;
     int classicLines = 0;
@@ -69,6 +72,8 @@ public:
     bool rotatePiece(int direction);
     bool hardDrop(int& outX, int& outY, std::vector<std::pair<int, int>>& outImpactCoords);
     void lockActivePiece(EngineTickEvent* outEvent = nullptr);
+    void diluteAcidCluster(int startY, int startX);
+    void convertFireToWaterCluster(int startY, int startX);
 
     bool updatePhysics(std::vector<std::pair<int, int>>* outAcidCorroded = nullptr);
     EngineTickEvent tick(int dtMs);
@@ -136,6 +141,8 @@ private:
     int m_lockTimer;
     bool m_isSoftDropping;
     bool m_isSandMoving;
+    bool m_pieceMeltedToDiluted;
+    bool m_pieceMeltedIceToWater;
     bool m_lastDropHadClear;
 
     // Mystery Mode Variables
@@ -156,4 +163,5 @@ private:
     std::vector<std::pair<int, int>> m_lastToxicCoords;
     std::vector<std::pair<int, int>> m_lastBurnedCoords;
     std::vector<std::pair<int, int>> m_lastExtinguishedCoords;
+    std::vector<std::pair<int, int>> m_lastDilutedCoords;
 };

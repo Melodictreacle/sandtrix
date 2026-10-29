@@ -116,6 +116,9 @@ class PiecePreviewWidget(QWidget):
             elif self.piece.is_fire():
                 display_title = "FIRE"
                 title_color = QColor("#FF4500")
+            elif self.piece.is_acid():
+                display_title = "ACID"
+                title_color = QColor("#CDEB2D")
 
         # Draw Title
         painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))

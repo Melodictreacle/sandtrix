@@ -3,6 +3,7 @@
 #include <QFont>
 #include <cmath>
 #include <numeric>
+#include <algorithm>
 
 GameCanvas::GameCanvas(AudioManager* audio, const ColorPalette& initialPalette, QWidget* parent)
     : QWidget(parent),
@@ -201,6 +202,21 @@ void GameCanvas::onGameLoop() {
         m_particles.triggerShake(3.0f);
     }
 
+    if (event.acidDiluted) {
+        m_particles.addClearedSandSparks(event.dilutedCoords, getDilutedAcidColor());
+        if (m_audio) m_audio->playAcidSizzle();
+        int midY = 250;
+        if (!event.dilutedCoords.empty()) {
+            int sumY = 0;
+            for (const auto& pt : event.dilutedCoords) sumY += pt.first;
+            midY = (sumY / static_cast<int>(event.dilutedCoords.size())) * CELL_DISPLAY_SIZE;
+        }
+        m_particles.addFloatingText(
+            CANVAS_WIDTH / 2.0f - 80.0f, static_cast<float>(midY),
+            "ICE MELTED INTO DILUTED ACID!", getDilutedAcidColor(), 14
+        );
+    }
+
     if (event.cleared) {
         if (event.isClassicTetris) {
             static const char* classicNames[] = { "", "SINGLE!", "DOUBLE!", "TRIPLE!", "TETRIS!" };
@@ -267,6 +283,9 @@ void GameCanvas::onGameLoop() {
             } else if (event.isAshClear) {
                 col = getAshColor();
                 if (m_audio) m_audio->playClear(2);
+            } else if (event.isDilutedAcidClear) {
+                col = getDilutedAcidColor();
+                if (m_audio) m_audio->playClear(2);
             } else {
                 col = m_palette.colors[event.color % m_palette.colors.size()];
             }
@@ -303,6 +322,12 @@ void GameCanvas::onGameLoop() {
                 m_particles.addFloatingText(
                     CANVAS_WIDTH / 2.0f - 60.0f, static_cast<float>(midY),
                     QString("ASH PURGED! +%1").arg(event.points),
+                    col, 16
+                );
+            } else if (event.isDilutedAcidClear) {
+                m_particles.addFloatingText(
+                    CANVAS_WIDTH / 2.0f - 75.0f, static_cast<float>(midY),
+                    QString("DILUTED ACID CLEANSE! +%1").arg(event.points),
                     col, 16
                 );
             } else if (event.combo > 1) {
@@ -539,27 +564,43 @@ void GameCanvas::paintEvent(QPaintEvent*) {
     uint32_t steamRgb = getSteamColor().rgb();
     uint32_t toxicRgb = getToxicGasColor().rgb();
     uint32_t ashRgb = getAshColor().rgb();
+    uint32_t dilutedAcidRgb = getDilutedAcidColor().rgb();
 
-    for (int i = 0; i < BOARD_WIDTH * BOARD_HEIGHT; ++i) {
-        uint8_t c = grid[i];
-        if (c == MATERIAL_WATER) {
-            bits[i] = waterRgb;
-        } else if (c == MATERIAL_ACID) {
-            bits[i] = acidRgb;
-        } else if (c == MATERIAL_BOMB) {
-            bits[i] = bombRgb;
-        } else if (c == MATERIAL_ICE) {
-            bits[i] = iceRgb;
-        } else if (c == MATERIAL_FIRE) {
-            bits[i] = fireRgb;
-        } else if (c == MATERIAL_STEAM) {
-            bits[i] = steamRgb;
-        } else if (c == MATERIAL_TOXIC_GAS) {
-            bits[i] = toxicRgb;
-        } else if (c == MATERIAL_ASH) {
-            bits[i] = ashRgb;
-        } else {
-            bits[i] = paletteRgb[c % numPalColors];
+    for (int y = 0; y < BOARD_HEIGHT; ++y) {
+        for (int x = 0; x < BOARD_WIDTH; ++x) {
+            int i = y * BOARD_WIDTH + x;
+            uint8_t c = grid[i];
+            if (c == MATERIAL_WATER || c == MATERIAL_DILUTED_ACID) {
+                // Dynamic water-like liquid texture (caustics, wave ripples, surface meniscus)
+                int wave = static_cast<int>(14.0 * std::sin(x * 0.45 + m_pulseTime * 3.5) +
+                                            8.0 * std::sin((x + y) * 0.25 - m_pulseTime * 2.0));
+                bool isSurface = (y == 0 || grid[(y - 1) * BOARD_WIDTH + x] == 0);
+                if (isSurface) wave += 32;
+                if (c == MATERIAL_DILUTED_ACID) {
+                    wave += static_cast<int>(10.0 * std::sin(x * 1.8 + y * 2.3 + m_pulseTime * 8.0));
+                }
+                QColor baseCol = (c == MATERIAL_DILUTED_ACID) ? getDilutedAcidColor() : getWaterColor();
+                int r = std::clamp(baseCol.red() + wave, 0, 255);
+                int g = std::clamp(baseCol.green() + wave, 0, 255);
+                int b = std::clamp(baseCol.blue() + wave, 0, 255);
+                bits[i] = qRgb(r, g, b);
+            } else if (c == MATERIAL_ACID) {
+                bits[i] = acidRgb;
+            } else if (c == MATERIAL_BOMB) {
+                bits[i] = bombRgb;
+            } else if (c == MATERIAL_ICE) {
+                bits[i] = iceRgb;
+            } else if (c == MATERIAL_FIRE) {
+                bits[i] = fireRgb;
+            } else if (c == MATERIAL_STEAM) {
+                bits[i] = steamRgb;
+            } else if (c == MATERIAL_TOXIC_GAS) {
+                bits[i] = toxicRgb;
+            } else if (c == MATERIAL_ASH) {
+                bits[i] = ashRgb;
+            } else {
+                bits[i] = paletteRgb[c % numPalColors];
+            }
         }
     }
 

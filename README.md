@@ -150,6 +150,10 @@ For acid cells (`MATERIAL_ACID`):
 - If $(x, y+1)$ contains sand, the acid reacts:
   - Both $(x, y)$ and $(x, y+1)$ are erased to empty (`0`).
   - Triggers an acid sizzle sound and particle spawn.
+- **Acid on Ice / Water (Melting & Dilution)**: When acid falls on ice (or enters contact with ice/water), the ice melts into water and rapidly converts into **Diluted Acid** (`MATERIAL_DILUTED_ACID`).
+  - Diluted Acid behaves as a flowing fluid that laterally levels out flat like water.
+  - Possesses a milder, progressive corrosive rate (30% per sub-step) against resting sand/ash, pooling over heaps while gently excavating them.
+  - Can connect unbroken edge-to-edge paths from left wall to right wall for double bonus points (`DILUTED ACID CLEANSE!`).
 
 For ice cells (`MATERIAL_ICE`):
 - Solid frozen water that avalanches with granular friction.
@@ -158,9 +162,9 @@ For ice cells (`MATERIAL_ICE`):
 
 For fire cells (`MATERIAL_FIRE`):
 - Roaring thermal pieces with blazing dynamic interactions:
-  - **Ice Melting + Steam**: When fire falls on ice, ice converts into liquid water (`MATERIAL_WATER`) and buoyant steam (`MATERIAL_STEAM`). Steam rises upward into the air and naturally dissipates after a few seconds.
+  - **Fire on Ice (Water Melting & Conversion)**: When fire falls on ice, the ice melts and the fire converts into liquid water (`MATERIAL_WATER`). 100% of the fire and ice convert into flowing water, pooling and leveling out with full fluid dynamics.
   - **Acid Ignition + Toxic Cloud**: When fire falls upon acid (`MATERIAL_ACID`), it triggers a volatile chemical reaction, generating a radioactive green toxic cloud (`MATERIAL_TOXIC_GAS`) that billows upward and dissipates after a few seconds.
-  - **Sand Scorching + Ash**: When fire falls upon sand, a portion of the contact sand burns and converts into charcoal ash powder (`MATERIAL_ASH`).
+  - **Sand Scorching + Ash**: When fire falls upon sand, some portion (~1/3 / 33%) of the impacted existing sand burns and converts into charcoal ash powder (`MATERIAL_ASH`), while the remaining ~2/3 of sand remains intact and mixed with the ash (never converting the whole portion). The fire itself burns out completely without occupying any extra grid cells.
 - Melted water resumes fluid flow, leveling out flat, and ash settles like granular powder.
 
 For steam & toxic gas cells (`MATERIAL_STEAM`, `MATERIAL_TOXIC_GAS`):
@@ -178,9 +182,10 @@ Every frame where sand settles, the engine checks for completed paths ([`SandEng
 3. Perform a **Breadth-First Search (BFS)** using an 8-connected neighborhood:
    $$\mathcal{N} = \{(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)\}$$
 4. If the traversal reaches any cell on the right boundary ($x = W - 1 = 79$):
-   - The entire connected component of matching grains is marked for clearance.
-   - Cleared cells vaporize into spark particles.
-   - Points are awarded: $\text{Points} = (\text{Grains} \times 5 + \text{Bands} \times 400) \times \text{Combo}^{1.5}$.
+   - For granular materials (sand, ice, fire, ash): The entire connected component of matching grains is marked for clearance.
+   - For liquid water (`MATERIAL_WATER`) and diluted acid (`MATERIAL_DILUTED_ACID`): Connecting both edges triggers a **Tidal Wave**, causing the **entire volume / all water across the whole board to vanish completely** (0 water remaining).
+   - Cleared cells vaporize into spark particles and trigger water splashes.
+   - Points are awarded: $\text{Points} = (\text{Grains} \times 5 + \text{Bands} \times 800) \times \text{Combo}^{1.5}$ for elemental clears.
 
 ```
 Left Wall (x=0)                                           Right Wall (x=79)
@@ -237,6 +242,7 @@ To ensure effortless identification without visual fatigue, the game uses **one 
 | **Ice** | **Glacial Frost Blue** | `#99E6FF` | $195^\circ$ (Ice) | Crisp glacial cyan-white; distinct solid crystal tone. |
 | **Fire** | **Blazing Fiery Orange** | `#FF4500` | $16^\circ$ (Orange) | Vivid roaring flame orange; high temperature contrast. |
 | **Acid** | **Chartreuse Lime** | `#CDEB2D` | $70^\circ$ (Lime) | Radioactive yellow-green; distinct from emerald jade. |
+| **Diluted Acid** | **Shimmering Aquamarine** | `#18E4CC` | $174^\circ$ (Aqua) | Shimmering aquamarine water-like fluid texture; created when acid melts ice/water. |
 | **Background** | **Slate Charcoal** | `#12151C` | — | Deep, warm dark slate eliminating glare and eye strain. |
 
 ### Eye-Comfort Slate Theme & Distinctive Button Hierarchy
@@ -248,7 +254,7 @@ To ensure effortless identification without visual fatigue, the game uses **one 
   - Clearly visible coral-crimson text (`#E57373`), wine background hover (`#4A232C`), and `#4A343E` border.
 - **Pre-Game Screen Management**:
   - `QStackedWidget` manages screen transitions cleanly:
-    - Screen 0: **Main Menu** (Start, Settings, How to Play, Exit).
+    - Screen 0: **Main Menu** (Quick Game Mode Switcher, Starting Difficulty / Level Stepper 1–10, Mission Line Goal Selector [Endless, 20L, 40L, 100L], Start Game, Settings, How to Play, Exit).
     - Screen 1: **Settings** (Starting speed/level 1–10, Elemental pieces toggle, Sound volume). Settings are locked during active runs to ensure competitive integrity.
     - Screen 2: **How to Play** (Rich interactive scrollable visual manual).
     - Screen 3: **Game Screen** (Playfield, StatCards, Next Queue, Hold Box, locked Match Status).
